@@ -1,0 +1,758 @@
+<!doctype html>
+<html lang="de-CH">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1f6f5c">
+<title>Budget</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon.svg">
+<style>
+:root {
+  --bg: #f4f6f5; --card: #fff; --text: #1d2422; --muted: #66706d; --line: #e1e6e4;
+  --brand: #1f6f5c; --brand-soft: #e3f1ec; --ok: #2e8b57; --warn: #c98a00; --bad: #c0392b;
+  --radius: 14px;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #121614; --card: #1c2220; --text: #e8eeec; --muted: #9aa5a1; --line: #2c3431;
+    --brand: #4fb79a; --brand-soft: #1d332c; }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--text);
+  font: 16px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+button, input, select, textarea { font: inherit; color: inherit; }
+body { padding-bottom: calc(76px + env(safe-area-inset-bottom)); }
+main { max-width: 760px; margin: 0 auto; padding: 12px 16px 24px; }
+
+.top { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 8px;
+  padding: calc(8px + env(safe-area-inset-top)) 12px 8px; background: var(--brand); color: #fff; }
+.top button { background: none; border: 0; color: #fff; cursor: pointer; }
+.mandant { font-weight: 600; max-width: 40%; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  padding: 6px 8px; border-radius: 8px; background: rgba(255,255,255,.15) !important; }
+.monat { flex: 1; white-space: nowrap; font-size: 15px; display: flex; align-items: center; justify-content: center; gap: 6px; font-weight: 600; }
+.monat button { font-size: 26px; padding: 0 10px; line-height: 1; }
+.sync { font-size: 20px; padding: 6px 10px; }
+.sync.dirty::after { content: "•"; color: #ffd166; margin-left: 2px; }
+
+.tabs { position: fixed; left: 0; right: 0; bottom: 0; display: flex; background: var(--card);
+  border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom); z-index: 5; }
+.tabs button { flex: 1; background: none; border: 0; padding: 8px 0 10px; font-size: 11px; color: var(--muted);
+  display: flex; flex-direction: column; align-items: center; gap: 2px; cursor: pointer; }
+.tabs button span { font-size: 20px; line-height: 1.1; }
+.tabs button.on { color: var(--brand); font-weight: 600; }
+.tabs .plus span { background: var(--brand); color: #fff; width: 38px; height: 38px; border-radius: 50%;
+  display: grid; place-items: center; font-size: 26px; margin-top: -14px; box-shadow: 0 2px 6px rgba(0,0,0,.2); }
+
+.card { background: var(--card); border-radius: var(--radius); padding: 14px 16px; margin: 0 0 12px;
+  box-shadow: 0 1px 2px rgba(0,0,0,.05); border: 1px solid var(--line); }
+h2 { font-size: 18px; margin: 4px 0 10px; }
+h3 { font-size: 15px; margin: 0 0 8px; color: var(--muted); font-weight: 600; }
+.muted { color: var(--muted); font-size: 14px; }
+.row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.big { font-size: 26px; font-weight: 700; }
+.num { font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+.pos { color: var(--ok); } .neg { color: var(--bad); }
+
+.bar { height: 12px; background: var(--line); border-radius: 6px; overflow: hidden; margin: 8px 0 4px; }
+.bar > i { display: block; height: 100%; background: var(--ok); border-radius: 6px; }
+.bar.warn > i { background: var(--warn); } .bar.bad > i { background: var(--bad); }
+
+.list { list-style: none; margin: 0; padding: 0; }
+.list li { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-top: 1px solid var(--line); }
+.list li:first-child { border-top: 0; }
+.list .grow { flex: 1; min-width: 0; }
+.list .t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.list li.click { cursor: pointer; }
+
+.btn { border: 0; border-radius: 10px; padding: 10px 14px; background: var(--brand); color: #fff;
+  font-weight: 600; cursor: pointer; }
+.btn.sec { background: var(--brand-soft); color: var(--brand); }
+.btn.danger { background: transparent; color: var(--bad); border: 1px solid var(--bad); }
+.btn.sm { padding: 6px 10px; font-size: 14px; }
+.btn.full { width: 100%; padding: 14px; font-size: 17px; }
+.btns { display: flex; gap: 8px; flex-wrap: wrap; }
+
+label { display: block; font-size: 14px; color: var(--muted); margin: 10px 0 4px; }
+input, select, textarea { width: 100%; padding: 11px 12px; border: 1px solid var(--line); border-radius: 10px;
+  background: var(--bg); }
+input:focus, select:focus { outline: 2px solid var(--brand); outline-offset: 0; }
+.seg { display: flex; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 3px; }
+.seg button { flex: 1; border: 0; background: none; padding: 8px; border-radius: 8px; cursor: pointer; }
+.seg button.on { background: var(--card); box-shadow: 0 1px 3px rgba(0,0,0,.12); font-weight: 600; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th, td { padding: 7px 4px; border-top: 1px solid var(--line); }
+th { text-align: left; color: var(--muted); font-weight: 600; border-top: 0; }
+td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+tr.sum td { font-weight: 700; border-top: 2px solid var(--text); }
+tr.click { cursor: pointer; }
+.tablewrap { overflow-x: auto; }
+.dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; background: var(--ok); }
+.dot.warn { background: var(--warn); } .dot.bad { background: var(--bad); }
+
+.chart { display: flex; align-items: flex-end; gap: 4px; height: 140px; padding-top: 8px; }
+.chart .col { flex: 1; display: flex; flex-direction: column; align-items: center; height: 100%; justify-content: flex-end; }
+.chart .bars { display: flex; gap: 2px; align-items: flex-end; height: 100%; width: 100%; justify-content: center; }
+.chart .b { width: 40%; border-radius: 3px 3px 0 0; min-height: 1px; }
+.chart .b.soll { background: var(--line); } .chart .b.ist { background: var(--brand); }
+.chart .b.ist.over { background: var(--bad); }
+.chart small { font-size: 10px; color: var(--muted); margin-top: 3px; }
+
+#toast { position: fixed; left: 50%; bottom: 90px; transform: translateX(-50%); background: #222; color: #fff;
+  padding: 10px 16px; border-radius: 10px; opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 20;
+  max-width: 90vw; text-align: center; }
+#toast.show { opacity: .95; }
+
+.sheet-bg { position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 10; display: flex; align-items: flex-end; justify-content: center; }
+.sheet { background: var(--card); width: 100%; max-width: 560px; max-height: 88vh; overflow: auto;
+  border-radius: 18px 18px 0 0; padding: 16px 16px calc(16px + env(safe-area-inset-bottom)); }
+@media (min-width: 700px) { .sheet-bg { align-items: center; } .sheet { border-radius: 18px; } }
+.empty { text-align: center; color: var(--muted); padding: 20px 0; }
+.pill { font-size: 12px; padding: 2px 8px; border-radius: 99px; background: var(--brand-soft); color: var(--brand); }
+
+</style>
+</head>
+<body>
+<header class="top">
+  <button id="mandantBtn" class="mandant" aria-label="Buchhaltung wechseln"></button>
+  <div class="monat">
+    <button id="prevM" aria-label="Vormonat">‹</button>
+    <span id="monatLabel"></span>
+    <button id="nextM" aria-label="Nächster Monat">›</button>
+  </div>
+  <button id="syncBtn" class="sync" aria-label="Synchronisieren" title="Mit GitHub abgleichen">⟳</button>
+</header>
+<main id="view"></main>
+<nav class="tabs">
+  <button data-tab="start" class="on"><span>⌂</span>Start</button>
+  <button data-tab="buchungen"><span>☰</span>Buchungen</button>
+  <button data-tab="neu" class="plus"><span>+</span>Erfassen</button>
+  <button data-tab="auswertung"><span>▥</span>Auswertung</button>
+  <button data-tab="einstellungen"><span>⚙</span>Einstellungen</button>
+</nav>
+<div id="toast" role="status"></div>
+<script>
+// Startwerte aus Brigitte.xlsx (Budget pro Monat in CHF)
+window.SEED = {
+  konten: [
+    // Einnahmen
+    { nr: '3000', name: 'AHV', typ: 'E', budget: 2218, fix: 'fix', tag: 1 },
+    { nr: '6000', name: 'PK', typ: 'E', budget: 1600, fix: 'fix', tag: 1 },
+    { nr: '7000', name: 'Lohn Tonis Zoo', typ: 'E', budget: 800, fix: 'variabel', tag: 25 },
+    // Ausgaben
+    { nr: '4000', name: 'Miete mit Parkplatz', typ: 'A', budget: 1572, fix: 'fix', tag: 1 },
+    { nr: '4010', name: 'Krankenkasse', typ: 'A', budget: 540, fix: 'fix', tag: 1 },
+    { nr: '4020', name: 'Steuern', typ: 'A', budget: 205, fix: 'fix', tag: 1 },
+    { nr: '4030', name: 'Versicherung', typ: 'A', budget: 50, fix: 'fix', tag: 1 },
+    { nr: '4100', name: 'Benzinkosten', typ: 'A', budget: 80 },
+    { nr: '4110', name: 'Haushalt Essen', typ: 'A', budget: 400 },
+    { nr: '4120', name: 'Anschaffungen', typ: 'A', budget: 0 },
+    { nr: '4130', name: 'Geschenke', typ: 'A', budget: 0 },
+    { nr: '4140', name: 'Telefonie und Internet', typ: 'A', budget: 90, fix: 'fix', tag: 1 },
+    { nr: '4150', name: 'Arzt/Zahnarzt', typ: 'A', budget: 200 },
+    { nr: '4160', name: 'Coiffeur', typ: 'A', budget: 50 },
+    { nr: '4170', name: 'Kultur', typ: 'A', budget: 0 },
+    { nr: '4180', name: 'Optiker', typ: 'A', budget: 100 },
+    { nr: '4190', name: 'Fitness', typ: 'A', budget: 75, fix: 'fix', tag: 1 },
+    { nr: '4200', name: 'SBB und ÖV', typ: 'A', budget: 125 },
+    { nr: '4210', name: 'Kurse', typ: 'A', budget: 67.5 },
+    { nr: '4220', name: 'APPS', typ: 'A', budget: 20 },
+    { nr: '4230', name: 'Mitgliedschaften (Rega, Paraplegiker)', typ: 'A', budget: 95 },
+    { nr: '4900', name: 'Diverses', typ: 'A', budget: 0 }
+  ]
+};
+
+</script>
+<script>
+'use strict';
+/* Budget-App: Version 1
+   Daten liegen lokal im Browser und werden optional mit einem privaten GitHub-Repository abgeglichen.
+   Pro Buchhaltung (Mandant) ein eigenes Repository. */
+
+const LS = {
+  get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { toast('Speichern fehlgeschlagen: ' + e.message); } },
+  del(k) { try { localStorage.removeItem(k); } catch {} }
+};
+const MONATE = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
+const MK = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
+
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+const now = () => Date.now();
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const chf = (n, d = 2) => (Math.round((n || 0) * 100) / 100).toLocaleString('de-CH', { minimumFractionDigits: d, maximumFractionDigits: d });
+const chf0 = n => chf(n, 0);
+const parseBetrag = s => { const v = parseFloat(String(s).replace(/['’\s]/g, '').replace(',', '.')); return isNaN(v) ? null : Math.round(v * 100) / 100; };
+const pad = n => String(n).padStart(2, '0');
+const todayISO = () => { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; };
+const ymOf = iso => iso.slice(0, 7);
+const ymNow = () => todayISO().slice(0, 7);
+const ymAdd = (ym, n) => { let [y, m] = ym.split('-').map(Number); m += n; while (m < 1) { m += 12; y--; } while (m > 12) { m -= 12; y++; } return `${y}-${pad(m)}`; };
+const ymLabel = ym => `${MONATE[+ym.slice(5) - 1]} ${ym.slice(0, 4)}`;
+const fmtDate = iso => { const [y, m, d] = iso.split('-'); return `${d}.${m}.${y}`; };
+
+/* ---------- Zustand ---------- */
+const S = {
+  mandanten: LS.get('budget.mandanten', []),
+  aktiv: LS.get('budget.aktiv', null),
+  ich: LS.get('budget.ich', ''),
+  ym: ymNow(),
+  tab: 'start',
+  auswertung: 'monat',
+  filterKonto: '',
+  data: null,
+  syncing: false
+};
+
+function neueDaten(vorlage) {
+  const d = { version: 1, start: ymNow(), konten: [], buchungen: [], geloescht: {}, u: now() };
+  if (vorlage === 'excel') {
+    d.konten = SEED.konten.map(k => ({ id: uid(), nr: k.nr, name: k.name, typ: k.typ, budget: k.budget, monate: {},
+      fix: k.fix || '', tag: k.tag || 1, aktiv: true, u: now() }));
+  } else if (vorlage && vorlage.konten) {
+    d.konten = vorlage.konten.filter(k => k.aktiv !== false).map(k => ({ ...k, id: uid(), monate: { ...k.monate }, u: now() }));
+  }
+  return d;
+}
+function mandant() { return S.mandanten.find(m => m.id === S.aktiv); }
+function ladeDaten() { S.data = LS.get('budget.data.' + S.aktiv, null) || neueDaten('excel'); }
+function speichereMandanten() { LS.set('budget.mandanten', S.mandanten); LS.set('budget.aktiv', S.aktiv); }
+function speichere(syncSpaeter = true) {
+  S.data.u = now();
+  LS.set('budget.data.' + S.aktiv, S.data);
+  const m = mandant();
+  if (m) { m.dirty = true; speichereMandanten(); }
+  if (syncSpaeter) planeSync();
+  aktualisiereKopf();
+}
+
+function init() {
+  if (!S.mandanten.length) {
+    const id = uid();
+    S.mandanten.push({ id, name: 'Meine Buchhaltung', repo: '', dirty: false });
+    S.aktiv = id;
+    LS.set('budget.data.' + id, neueDaten('excel'));
+    speichereMandanten();
+  }
+  if (!mandant()) S.aktiv = S.mandanten[0].id;
+  ladeDaten();
+  document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => zeige(b.dataset.tab));
+  document.getElementById('prevM').onclick = () => { S.ym = ymAdd(S.ym, -1); render(); };
+  document.getElementById('nextM').onclick = () => { S.ym = ymAdd(S.ym, 1); render(); };
+  document.getElementById('mandantBtn').onclick = mandantWahl;
+  document.getElementById('syncBtn').onclick = () => sync(true);
+  render();
+  if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(() => {});
+  setTimeout(() => sync(false), 400);
+}
+
+/* ---------- Berechnungen ---------- */
+const konto = id => S.data.konten.find(k => k.id === id);
+const kontenTyp = typ => S.data.konten.filter(k => k.typ === typ && k.aktiv !== false).sort((a, b) => String(a.nr).localeCompare(String(b.nr), 'de', { numeric: true }));
+const budgetFuer = (k, ym) => (k.monate && k.monate[ym] != null) ? k.monate[ym] : (k.budget || 0);
+const buchungenIm = ym => S.data.buchungen.filter(b => ymOf(b.datum) === ym);
+function istFuer(kontoId, ym) { let s = 0; for (const b of S.data.buchungen) if (b.kontoId === kontoId && ymOf(b.datum) === ym) s += b.betrag; return s; }
+function summen(ym) {
+  const r = { A: { soll: 0, ist: 0 }, E: { soll: 0, ist: 0 } };
+  for (const k of S.data.konten) { if (k.aktiv === false) continue; r[k.typ].soll += budgetFuer(k, ym); }
+  for (const b of buchungenIm(ym)) { const k = konto(b.kontoId); if (k) r[k.typ].ist += b.betrag; }
+  return r;
+}
+// Differenz immer so, dass + = besser als Budget
+const diff = (typ, soll, ist) => typ === 'A' ? soll - ist : ist - soll;
+function ampel(typ, soll, ist) {
+  if (typ === 'A') { if (ist <= soll) return ''; if (soll > 0 && ist <= soll * 1.1) return 'warn'; return 'bad'; }
+  if (ist >= soll) return ''; if (ist >= soll * 0.9) return 'warn'; return 'bad';
+}
+function offeneFixposten(ym) {
+  if (ym < S.data.start || ym > ymNow()) return [];
+  return S.data.konten.filter(k => k.fix && k.aktiv !== false &&
+    !S.data.buchungen.some(b => b.fixKonto === k.id && b.fixMonat === ym));
+}
+
+/* ---------- Darstellung ---------- */
+function zeige(tab) { S.tab = tab; render(); window.scrollTo(0, 0); }
+function aktualisiereKopf() {
+  const m = mandant();
+  document.getElementById('mandantBtn').textContent = (m ? m.name : '') + ' ▾';
+  document.getElementById('monatLabel').textContent = ymLabel(S.ym);
+  const sb = document.getElementById('syncBtn');
+  sb.classList.toggle('dirty', !!(m && m.repo && m.dirty));
+  sb.style.visibility = m && m.repo ? 'visible' : 'hidden';
+}
+function render() {
+  aktualisiereKopf();
+  document.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === S.tab));
+  const v = document.getElementById('view');
+  const f = { start: vStart, buchungen: vBuchungen, neu: vNeu, auswertung: vAuswertung, einstellungen: vEinstellungen }[S.tab];
+  v.innerHTML = f();
+  bind(v);
+}
+// einfache Ereignisbindung über data-act Attribute
+function bind(root) {
+  root.querySelectorAll('[data-act]').forEach(el => {
+    const [act, arg] = el.dataset.act.split(':');
+    const ev = el.tagName === 'SELECT' || el.tagName === 'INPUT' ? 'change' : 'click';
+    el.addEventListener(ev, e => { e.stopPropagation(); AKT[act] && AKT[act](arg, el, e); });
+  });
+}
+function barHtml(typ, soll, ist) {
+  const p = soll > 0 ? Math.min(100, ist / soll * 100) : (ist > 0 ? 100 : 0);
+  return `<div class="bar ${ampel(typ, soll, ist)}"><i style="width:${p.toFixed(1)}%"></i></div>`;
+}
+
+function vStart() {
+  const ym = S.ym, s = summen(ym), offen = offeneFixposten(ym);
+  const saldo = s.E.ist - s.A.ist;
+  const pctA = s.A.soll ? Math.round(s.A.ist / s.A.soll * 100) : 0;
+  let h = `<div class="card">
+    <h3>Ausgaben ${esc(MONATE[+ym.slice(5) - 1])}</h3>
+    <div class="row"><span class="big">${chf0(s.A.ist)}</span><span class="muted">von ${chf0(s.A.soll)} CHF · ${pctA}%</span></div>
+    ${barHtml('A', s.A.soll, s.A.ist)}
+    <div class="row muted"><span>${s.A.soll - s.A.ist >= 0 ? 'Noch verfügbar' : 'Über Budget'}</span><span class="num ${s.A.soll - s.A.ist >= 0 ? 'pos' : 'neg'}">${chf0(Math.abs(s.A.soll - s.A.ist))} CHF</span></div>
+  </div>
+  <div class="card"><div class="grid2">
+    <div><h3>Einnahmen</h3><div class="big" style="font-size:20px">${chf0(s.E.ist)}</div><div class="muted">Budget ${chf0(s.E.soll)}</div></div>
+    <div><h3>Saldo</h3><div class="big ${saldo >= 0 ? 'pos' : 'neg'}" style="font-size:20px">${saldo >= 0 ? '+' : ''}${chf0(saldo)}</div><div class="muted">Einnahmen − Ausgaben</div></div>
+  </div></div>`;
+  if (offen.length) {
+    h += `<div class="card"><h2>Feste Posten bestätigen <span class="pill">${offen.length}</span></h2><ul class="list">` +
+      offen.map(k => `<li><div class="grow"><div class="t">${esc(k.name)}</div>
+        <div class="muted">${k.typ === 'E' ? 'Einnahme' : 'Ausgabe'} · ${k.fix === 'variabel' ? 'variabel, ca. ' : ''}${chf(budgetFuer(k, ym))} CHF</div></div>
+        <button class="btn sec sm" data-act="fixSkip:${k.id}" title="Diesen Monat entfällt">entfällt</button>
+        <button class="btn sm" data-act="fixOk:${k.id}">${k.fix === 'variabel' ? 'Betrag…' : '✓'}</button></li>`).join('') +
+      `</ul>${offen.some(k => k.fix === 'fix') ? `<div class="btns" style="margin-top:8px"><button class="btn sec sm" data-act="fixAlle">Alle fixen bestätigen</button></div>` : ''}</div>`;
+  } else if (ym >= S.data.start && ym <= ymNow() && S.data.konten.some(k => k.fix)) {
+    h += `<div class="card muted">✓ Alle festen Posten für diesen Monat sind bestätigt.</div>`;
+  }
+  // Konten über Budget
+  const ueber = kontenTyp('A').map(k => ({ k, soll: budgetFuer(k, ym), ist: istFuer(k.id, ym) })).filter(x => x.ist > x.soll).sort((a, b) => (b.ist - b.soll) - (a.ist - a.soll));
+  if (ueber.length) {
+    h += `<div class="card"><h2>Über Budget</h2><ul class="list">` + ueber.slice(0, 5).map(x =>
+      `<li><span class="dot ${ampel('A', x.soll, x.ist)}"></span><div class="grow t">${esc(x.k.name)}</div><span class="num neg">−${chf(x.ist - x.soll)}</span></li>`).join('') + `</ul></div>`;
+  }
+  const letzte = buchungenIm(ym).sort((a, b) => b.datum.localeCompare(a.datum) || b.u - a.u).slice(0, 5);
+  h += `<div class="card"><div class="row"><h2>Letzte Buchungen</h2><button class="btn sec sm" data-act="tab:buchungen">alle</button></div>` +
+    (letzte.length ? `<ul class="list">${letzte.map(buchungLi).join('')}</ul>` : `<div class="empty">Noch keine Buchungen in diesem Monat.</div>`) + `</div>`;
+  return h;
+}
+function buchungLi(b) {
+  const k = konto(b.kontoId) || { name: '(Konto gelöscht)', typ: 'A' };
+  return `<li class="click" data-act="edit:${b.id}"><div class="grow"><div class="t">${esc(b.text || k.name)}</div>
+    <div class="muted">${fmtDate(b.datum)} · ${esc(k.name)}${b.von ? ' · ' + esc(b.von) : ''}</div></div>
+    <span class="num ${k.typ === 'E' ? 'pos' : ''}">${k.typ === 'E' ? '+' : '−'}${chf(b.betrag)}</span></li>`;
+}
+
+function vBuchungen() {
+  let list = buchungenIm(S.ym);
+  if (S.filterKonto) list = list.filter(b => b.kontoId === S.filterKonto);
+  list.sort((a, b) => b.datum.localeCompare(a.datum) || b.u - a.u);
+  const opts = [...kontenTyp('A'), ...kontenTyp('E')].map(k => `<option value="${k.id}" ${S.filterKonto === k.id ? 'selected' : ''}>${esc(k.nr)} ${esc(k.name)}</option>`).join('');
+  const sum = list.reduce((s, b) => { const k = konto(b.kontoId); return s + (k && k.typ === 'E' ? b.betrag : -b.betrag); }, 0);
+  return `<div class="card"><label>Konto filtern</label><select data-act="filter"><option value="">Alle Konten</option>${opts}</select></div>
+    <div class="card"><div class="row"><h2>${list.length} Buchungen</h2><span class="num muted">Saldo ${chf(sum)}</span></div>
+    ${list.length ? `<ul class="list">${list.map(buchungLi).join('')}</ul>` : `<div class="empty">Keine Buchungen.</div>`}</div>`;
+}
+
+function formBuchung(b) {
+  const typ = b._typ || (konto(b.kontoId) || {}).typ || 'A';
+  const konten = kontenTyp(typ).map(k => `<option value="${k.id}" ${b.kontoId === k.id ? 'selected' : ''}>${esc(k.nr)} ${esc(k.name)}</option>`).join('');
+  return `<div class="seg" id="fTyp"><button type="button" data-typ="A" class="${typ === 'A' ? 'on' : ''}">Ausgabe</button><button type="button" data-typ="E" class="${typ === 'E' ? 'on' : ''}">Einnahme</button></div>
+    <label for="fBetrag">Betrag CHF</label><input id="fBetrag" inputmode="decimal" autocomplete="off" placeholder="0.00" value="${b.betrag != null ? b.betrag : ''}">
+    <div class="grid2"><div><label for="fDatum">Datum</label><input id="fDatum" type="date" value="${esc(b.datum)}"></div>
+    <div><label for="fKonto">Konto</label><select id="fKonto">${konten}</select></div></div>
+    <label for="fText">Text (optional)</label><input id="fText" value="${esc(b.text || '')}" placeholder="z. B. Migros, Coop, Apotheke">`;
+}
+function leseForm(root) {
+  const betrag = parseBetrag(root.querySelector('#fBetrag').value);
+  const datum = root.querySelector('#fDatum').value;
+  const kontoId = root.querySelector('#fKonto').value;
+  if (betrag == null || betrag < 0) { toast('Bitte einen gültigen Betrag eingeben.'); return null; }
+  if (!datum) { toast('Bitte ein Datum wählen.'); return null; }
+  if (!kontoId) { toast('Bitte ein Konto wählen.'); return null; }
+  return { betrag, datum, kontoId, text: root.querySelector('#fText').value.trim() };
+}
+function bindTypSeg(root, b) {
+  root.querySelectorAll('#fTyp button').forEach(btn => btn.onclick = () => {
+    const vals = { betrag: root.querySelector('#fBetrag').value, datum: root.querySelector('#fDatum').value, text: root.querySelector('#fText').value };
+    const holder = root.querySelector('#fHolder');
+    holder.innerHTML = formBuchung({ ...b, ...vals, _typ: btn.dataset.typ, kontoId: '' });
+    bindTypSeg(root, b);
+  });
+}
+function vNeu() {
+  const datum = S.ym === ymNow() ? todayISO() : S.ym + '-01';
+  setTimeout(() => { const root = document.getElementById('view'); bindTypSeg(root, { datum }); root.querySelector('#fBetrag').focus(); }, 0);
+  return `<div class="card"><h2>Neue Buchung</h2><div id="fHolder">${formBuchung({ datum, _typ: 'A' })}</div>
+    <div style="margin-top:16px"><button class="btn full" data-act="neuSpeichern">Speichern</button></div>
+    <p class="muted" style="margin-top:12px">📷 Beleg fotografieren mit automatischem Auslesen von Betrag und Datum kommt in Version 2.</p></div>`;
+}
+
+function vAuswertung() {
+  const seg = `<div class="seg" style="margin-bottom:12px"><button data-act="aw:monat" class="${S.auswertung === 'monat' ? 'on' : ''}">Monat</button><button data-act="aw:jahr" class="${S.auswertung === 'jahr' ? 'on' : ''}">Jahr ${S.ym.slice(0, 4)}</button></div>`;
+  return seg + (S.auswertung === 'monat' ? awMonat() : awJahr());
+}
+function kontoTabelle(typ, sollF, istF, titel, sollTitel) {
+  let ts = 0, ti = 0;
+  const rows = kontenTyp(typ).map(k => {
+    const soll = sollF(k), ist = istF(k); ts += soll; ti += ist;
+    if (!soll && !ist) return '';
+    const d = diff(typ, soll, ist);
+    return `<tr class="click" data-act="kontoBuch:${k.id}"><td><span class="dot ${ampel(typ, soll, ist)}"></span>${esc(k.name)}</td><td class="n">${chf0(soll)}</td><td class="n">${chf0(ist)}</td><td class="n ${d < 0 ? 'neg' : d > 0 ? 'pos' : ''}">${d > 0 ? '+' : ''}${chf0(d)}</td></tr>`;
+  }).join('');
+  const d = diff(typ, ts, ti);
+  return `<div class="card"><h2>${titel}</h2><div class="tablewrap"><table><tr><th>Konto</th><th class="n">${sollTitel}</th><th class="n">Ist</th><th class="n">Abw.</th></tr>${rows}
+    <tr class="sum"><td>Total</td><td class="n">${chf0(ts)}</td><td class="n">${chf0(ti)}</td><td class="n ${d < 0 ? 'neg' : 'pos'}">${d > 0 ? '+' : ''}${chf0(d)}</td></tr></table></div>
+    <p class="muted">Abweichung: + = besser als Budget, − = schlechter.</p></div>`;
+}
+function awMonat() {
+  const ym = S.ym;
+  return kontoTabelle('A', k => budgetFuer(k, ym), k => istFuer(k.id, ym), 'Ausgaben ' + ymLabel(ym), 'Budget') +
+    kontoTabelle('E', k => budgetFuer(k, ym), k => istFuer(k.id, ym), 'Einnahmen ' + ymLabel(ym), 'Budget');
+}
+function awJahr() {
+  const y = S.ym.slice(0, 4), yms = MONATE.map((_, i) => `${y}-${pad(i + 1)}`);
+  const ms = yms.map(summen);
+  const max = Math.max(1, ...ms.map(s => Math.max(s.A.soll, s.A.ist)));
+  const chart = `<div class="chart">${ms.map((s, i) => `<div class="col"><div class="bars">
+      <div class="b soll" style="height:${s.A.soll / max * 100}%" title="Budget ${chf0(s.A.soll)}"></div>
+      <div class="b ist ${s.A.ist > s.A.soll ? 'over' : ''}" style="height:${s.A.ist / max * 100}%" title="Ist ${chf0(s.A.ist)}"></div></div><small>${MK[i]}</small></div>`).join('')}</div>
+    <p class="muted"><span class="dot" style="background:var(--line)"></span>Budget <span class="dot" style="background:var(--brand);margin-left:10px"></span>Ausgaben <span class="dot bad" style="margin-left:10px"></span>über Budget</p>`;
+  let kum = 0, tA = 0, tAs = 0, tE = 0, tEs = 0, tD = 0;
+  const rows = ms.map((s, i) => {
+    const saldo = s.E.ist - s.A.ist; kum += saldo; tA += s.A.ist; tAs += s.A.soll; tE += s.E.ist; tEs += s.E.soll;
+    const aktiv = yms[i] >= S.data.start && yms[i] <= ymNow();
+    const d = s.A.soll - s.A.ist; if (aktiv) tD += d;
+    const dz = aktiv ? `<td class="n ${d < 0 ? 'neg' : 'pos'}">${d > 0 ? '+' : ''}${chf0(d)}</td>` : `<td class="n muted">–</td>`;
+    return `<tr class="click" data-act="gotoMonat:${yms[i]}"><td>${MK[i]}</td><td class="n">${chf0(s.A.soll)}</td><td class="n">${aktiv || s.A.ist ? chf0(s.A.ist) : '–'}</td>${dz}<td class="n">${aktiv || s.E.ist ? chf0(s.E.ist) : '–'}</td><td class="n ${kum < 0 ? 'neg' : ''}">${chf0(kum)}</td></tr>`;
+  }).join('');
+  const bisYm = y === ymNow().slice(0, 4) ? ymNow() : (y < ymNow().slice(0, 4) ? `${y}-12` : null);
+  const monateBis = bisYm ? yms.filter(m => m <= bisYm && m >= S.data.start) : [];
+  return `<div class="card"><h2>Ausgaben pro Monat ${y}</h2>${chart}</div>
+    <div class="card"><h2>Monate ${y}</h2><div class="tablewrap"><table>
+    <tr><th>Monat</th><th class="n">Budget</th><th class="n">Ausgaben</th><th class="n">Abw.</th><th class="n">Einnahmen</th><th class="n">Saldo kum.</th></tr>${rows}
+    <tr class="sum"><td>Total</td><td class="n">${chf0(tAs)}</td><td class="n">${chf0(tA)}</td><td class="n ${tD < 0 ? 'neg' : 'pos'}">${tD > 0 ? '+' : ''}${chf0(tD)}</td><td class="n">${chf0(tE)}</td><td class="n ${kum < 0 ? 'neg' : ''}">${chf0(kum)}</td></tr></table></div>
+    <p class="muted">Abweichung nur für Monate seit Beginn der Erfassung (${esc(ymLabel(S.data.start))}) bis heute. Budget Einnahmen Jahr: ${chf0(tEs)} CHF. Tippe auf einen Monat für Details.</p></div>` +
+    (monateBis.length ? kontoTabelle('A', k => monateBis.reduce((s, m) => s + budgetFuer(k, m), 0), k => monateBis.reduce((s, m) => s + istFuer(k.id, m), 0), `Ausgaben pro Konto ${MK[+monateBis[0].slice(5) - 1]}–${MK[+monateBis.at(-1).slice(5) - 1]}`, 'Budget') +
+      kontoTabelle('E', k => monateBis.reduce((s, m) => s + budgetFuer(k, m), 0), k => monateBis.reduce((s, m) => s + istFuer(k.id, m), 0), `Einnahmen pro Konto ${MK[+monateBis[0].slice(5) - 1]}–${MK[+monateBis.at(-1).slice(5) - 1]}`, 'Budget') : '');
+}
+
+function vEinstellungen() {
+  const m = mandant();
+  const konten = t => kontenTyp(t).map(k => `<li class="click" data-act="kontoEdit:${k.id}"><div class="grow"><div class="t">${esc(k.nr)} ${esc(k.name)}</div>
+    <div class="muted">${chf(k.budget)} CHF/Monat${Object.keys(k.monate || {}).length ? ' · mit Monatsanpassungen' : ''}${k.fix ? ' · fester Posten (' + k.fix + ')' : ''}</div></div><span class="muted">›</span></li>`).join('');
+  return `<div class="card"><h2>Buchhaltung</h2>
+    <label for="sName">Name dieser Buchhaltung</label><input id="sName" value="${esc(m.name)}" data-act="setName">
+    <label for="sIch">Dein Name (wird bei Buchungen vermerkt)</label><input id="sIch" value="${esc(S.ich)}" placeholder="z. B. Walter" data-act="setIch">
+    <div class="btns" style="margin-top:12px"><button class="btn sec" data-act="mandantNeu">+ Neue Buchhaltung</button>
+    ${S.mandanten.length > 1 ? `<button class="btn danger" data-act="mandantLoeschen">Diese Buchhaltung auf diesem Gerät entfernen</button>` : ''}</div></div>
+
+    <div class="card"><h2>Kontoplan und Budget</h2><p class="muted">Antippen zum Ändern: Name, Budget, Monatsanpassungen, fester Posten.</p>
+    <h3 style="margin-top:12px">Ausgaben</h3><ul class="list">${konten('A')}</ul>
+    <h3 style="margin-top:12px">Einnahmen</h3><ul class="list">${konten('E')}</ul>
+    <div class="btns" style="margin-top:10px"><button class="btn sec" data-act="kontoEdit:neu">+ Konto hinzufügen</button></div></div>
+
+    <div class="card"><h2>GitHub-Abgleich</h2>
+    <p class="muted">Damit Handy und PC dieselben Daten sehen. Jede Buchhaltung braucht ein eigenes <b>privates</b> Repository. Anleitung: ANLEITUNG.md.</p>
+    <label for="sRepo">Repository (Benutzer/Name)</label><input id="sRepo" value="${esc(m.repo || vorschlagRepo(m.name))}" placeholder="z. B. pasaruwa-bit/Buchhaltung_Brigitte" autocapitalize="off" autocomplete="off">
+    <label for="sToken">Zugangsschlüssel (Token)</label><input id="sToken" type="password" value="${esc(LS.get('budget.token.' + m.id, ''))}" placeholder="github_pat_…" autocomplete="off">
+    <div class="btns" style="margin-top:12px"><button class="btn" data-act="ghSpeichern">Speichern und abgleichen</button>
+    ${m.repo ? `<button class="btn danger" data-act="ghTrennen">Abgleich ausschalten</button>` : ''}</div>
+    ${m.lastSync ? `<p class="muted">Letzter Abgleich: ${new Date(m.lastSync).toLocaleString('de-CH')}</p>` : ''}</div>
+
+    <div class="card"><h2>Daten</h2>
+    <div class="btns"><button class="btn sec" data-act="csv">Buchungen ${S.ym.slice(0, 4)} als CSV (Excel)</button>
+    <button class="btn sec" data-act="backup">Sicherung herunterladen</button>
+    <button class="btn sec" data-act="restore">Sicherung einlesen</button></div>
+    <p class="muted">Version 1 · Daten dieser Buchhaltung: ${S.data.buchungen.length} Buchungen, ${S.data.konten.length} Konten</p></div>`;
+}
+
+// Namensregel: Buchhaltung_<Name>, z. B. Buchhaltung_Brigitte
+function repoName(name) {
+  return 'Buchhaltung_' + String(name || 'Neu').trim().replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/Ä/g, 'Ae').replace(/Ö/g, 'Oe').replace(/Ü/g, 'Ue')
+    .replace(/\s+/g, '_').replace(/[^\w.-]/g, '');
+}
+function vorschlagRepo(name) { return LS.get('budget.ghuser', 'pasaruwa-bit') + '/' + repoName(name); }
+
+/* ---------- Bottom-Sheet ---------- */
+function sheet(html, onBind) {
+  const bg = document.createElement('div');
+  bg.className = 'sheet-bg';
+  bg.innerHTML = `<div class="sheet">${html}</div>`;
+  bg.addEventListener('click', e => { if (e.target === bg) bg.remove(); });
+  document.body.appendChild(bg);
+  const close = () => bg.remove();
+  onBind && onBind(bg.querySelector('.sheet'), close);
+  return close;
+}
+
+/* ---------- Aktionen ---------- */
+function neueBuchung(f, extra = {}) {
+  S.data.buchungen.push({ id: uid(), ...f, von: S.ich || '', u: now(), ...extra });
+  speichere();
+}
+const AKT = {
+  tab: t => zeige(t),
+  filter: (_, el) => { S.filterKonto = el.value; render(); },
+  aw: a => { S.auswertung = a; render(); },
+  gotoMonat: ym => { S.ym = ym; S.auswertung = 'monat'; render(); },
+  kontoBuch: id => { S.filterKonto = id; zeige('buchungen'); },
+  neuSpeichern: () => {
+    const f = leseForm(document.getElementById('view')); if (!f) return;
+    neueBuchung(f); S.ym = ymOf(f.datum); toast('Gespeichert ✓'); zeige('start');
+  },
+  edit: id => {
+    const b = S.data.buchungen.find(x => x.id === id); if (!b) return;
+    sheet(`<h2>Buchung bearbeiten</h2><div id="fHolder">${formBuchung(b)}</div>
+      ${b.fixMonat ? `<p class="muted">Fester Posten ${esc(ymLabel(b.fixMonat))}</p>` : ''}
+      ${b.von ? `<p class="muted">Erfasst von ${esc(b.von)}</p>` : ''}
+      <div class="btns" style="margin-top:16px"><button class="btn" id="sv">Speichern</button><button class="btn sec" id="cx">Abbrechen</button><button class="btn danger" id="dl">Löschen</button></div>`,
+      (root, close) => {
+        bindTypSeg(root, b);
+        root.querySelector('#cx').onclick = close;
+        root.querySelector('#sv').onclick = () => { const f = leseForm(root); if (!f) return; Object.assign(b, f, { u: now() }); speichere(); close(); render(); toast('Gespeichert ✓'); };
+        root.querySelector('#dl').onclick = () => {
+          if (!confirm('Buchung wirklich löschen?')) return;
+          S.data.buchungen = S.data.buchungen.filter(x => x.id !== id); S.data.geloescht[id] = now(); speichere(); close(); render(); toast('Gelöscht');
+        };
+      });
+  },
+  fixOk: id => {
+    const k = konto(id), ym = S.ym, betrag = budgetFuer(k, ym);
+    const datum = `${ym}-${pad(Math.min(k.tag || 1, 28))}`;
+    if (k.fix === 'fix') { neueBuchung({ betrag, datum, kontoId: k.id, text: k.name }, { fixKonto: k.id, fixMonat: ym }); render(); toast(`${k.name} bestätigt ✓`); return; }
+    sheet(`<h2>${esc(k.name)}</h2><p class="muted">Budget ${chf(betrag)} CHF. Trage den effektiven Betrag ein.</p>
+      <label for="vB">Betrag CHF</label><input id="vB" inputmode="decimal" value="${betrag}">
+      <label for="vD">Datum</label><input id="vD" type="date" value="${datum}">
+      <div class="btns" style="margin-top:16px"><button class="btn" id="ok">Bestätigen</button><button class="btn sec" id="cx">Abbrechen</button></div>`,
+      (root, close) => {
+        const inp = root.querySelector('#vB'); inp.focus(); inp.select();
+        root.querySelector('#cx').onclick = close;
+        root.querySelector('#ok').onclick = () => {
+          const b = parseBetrag(inp.value); if (b == null) return toast('Bitte einen gültigen Betrag eingeben.');
+          neueBuchung({ betrag: b, datum: root.querySelector('#vD').value || datum, kontoId: k.id, text: k.name }, { fixKonto: k.id, fixMonat: ym });
+          close(); render(); toast(`${k.name} bestätigt ✓`);
+        };
+      });
+  },
+  fixSkip: id => {
+    const k = konto(id);
+    if (!confirm(`${k.name} entfällt in ${ymLabel(S.ym)}?`)) return;
+    neueBuchung({ betrag: 0, datum: `${S.ym}-${pad(Math.min(k.tag || 1, 28))}`, kontoId: k.id, text: k.name + ' (entfällt)' }, { fixKonto: k.id, fixMonat: S.ym });
+    render();
+  },
+  fixAlle: () => {
+    const ym = S.ym, liste = offeneFixposten(ym).filter(k => k.fix === 'fix');
+    if (!confirm(`${liste.length} feste Posten mit dem Budgetbetrag bestätigen?`)) return;
+    for (const k of liste) S.data.buchungen.push({ id: uid(), betrag: budgetFuer(k, ym), datum: `${ym}-${pad(Math.min(k.tag || 1, 28))}`, kontoId: k.id, text: k.name, von: S.ich || '', u: now(), fixKonto: k.id, fixMonat: ym });
+    speichere(); render(); toast(`${liste.length} Posten bestätigt ✓`);
+  },
+  setName: (_, el) => { mandant().name = el.value.trim() || 'Buchhaltung'; speichereMandanten(); aktualisiereKopf(); },
+  setIch: (_, el) => { S.ich = el.value.trim(); LS.set('budget.ich', S.ich); },
+  kontoEdit: id => kontoSheet(id === 'neu' ? null : konto(id)),
+  mandantNeu: () => mandantNeu(),
+  mandantLoeschen: () => {
+    const m = mandant();
+    if (!confirm(`„${m.name}“ von diesem Gerät entfernen?${m.repo ? ' Die Daten im GitHub-Repository bleiben erhalten.' : ' ACHTUNG: Ohne GitHub-Abgleich sind die Daten danach weg.'}`)) return;
+    LS.del('budget.data.' + m.id); LS.del('budget.token.' + m.id);
+    S.mandanten = S.mandanten.filter(x => x.id !== m.id); S.aktiv = S.mandanten[0].id; speichereMandanten(); ladeDaten(); render();
+  },
+  ghSpeichern: async () => {
+    const m = mandant();
+    const repo = document.getElementById('sRepo').value.trim().replace(/^https?:\/\/github\.com\//, '').replace(/\.git$/, '').replace(/\/$/, '');
+    const token = document.getElementById('sToken').value.trim();
+    if (!/^[\w.-]+\/[\w.-]+$/.test(repo)) return toast('Repository bitte als Benutzer/Name angeben.');
+    if (!token) return toast('Bitte den Zugangsschlüssel eintragen.');
+    LS.set('budget.ghuser', repo.split('/')[0]);
+    if (!S.data.buchungen.length) m.uebernehmen = true; // leere Buchhaltung: vorhandene GitHub-Daten 1:1 übernehmen
+    m.repo = repo; m.dirty = true; LS.set('budget.token.' + m.id, token); speichereMandanten();
+    await sync(true); render();
+  },
+  ghTrennen: () => { const m = mandant(); if (!confirm('GitHub-Abgleich für diese Buchhaltung ausschalten? Die Daten bleiben auf diesem Gerät.')) return; m.repo = ''; LS.del('budget.token.' + m.id); speichereMandanten(); render(); },
+  csv: () => {
+    const y = S.ym.slice(0, 4);
+    const rows = [['Datum', 'Konto-Nr', 'Konto', 'Art', 'Betrag', 'Text', 'Erfasst von']];
+    S.data.buchungen.filter(b => b.datum.startsWith(y)).sort((a, b) => a.datum.localeCompare(b.datum)).forEach(b => {
+      const k = konto(b.kontoId) || {};
+      rows.push([fmtDate(b.datum), k.nr || '', k.name || '', k.typ === 'E' ? 'Einnahme' : 'Ausgabe', String(b.betrag.toFixed(2)), b.text || '', b.von || '']);
+    });
+    const csv = '﻿' + rows.map(r => r.map(c => /[;"\n]/.test(c) ? `"${c.replace(/"/g, '""')}"` : c).join(';')).join('\r\n');
+    download(`Buchungen_${mandant().name}_${y}.csv`, csv, 'text/csv');
+  },
+  backup: () => download(`Sicherung_${mandant().name}_${todayISO()}.json`, JSON.stringify(S.data, null, 1), 'application/json'),
+  restore: () => {
+    const i = document.createElement('input'); i.type = 'file'; i.accept = '.json,application/json';
+    i.onchange = async () => {
+      try {
+        const d = JSON.parse(await i.files[0].text());
+        if (!Array.isArray(d.konten) || !Array.isArray(d.buchungen)) throw new Error('keine gültige Sicherung');
+        if (!confirm(`Sicherung mit ${d.buchungen.length} Buchungen einlesen? Die aktuellen Daten dieser Buchhaltung werden ersetzt.`)) return;
+        S.data = { geloescht: {}, ...d }; speichere(); render(); toast('Sicherung eingelesen ✓');
+      } catch (e) { toast('Fehler: ' + e.message); }
+    };
+    i.click();
+  }
+};
+
+function kontoSheet(k) {
+  const neu = !k;
+  k = k || { nr: '', name: '', typ: 'A', budget: 0, monate: {}, fix: '', tag: 1 };
+  const y = S.ym.slice(0, 4);
+  const monInputs = MONATE.map((_, i) => { const ym = `${y}-${pad(i + 1)}`; const v = k.monate && k.monate[ym] != null ? k.monate[ym] : '';
+    return `<div><label for="m${i}">${MK[i]}</label><input id="m${i}" inputmode="decimal" placeholder="${chf(k.budget)}" value="${v}"></div>`; }).join('');
+  sheet(`<h2>${neu ? 'Neues Konto' : 'Konto bearbeiten'}</h2>
+    <div class="seg" id="kTyp"><button type="button" data-typ="A" class="${k.typ === 'A' ? 'on' : ''}">Ausgabe</button><button type="button" data-typ="E" class="${k.typ === 'E' ? 'on' : ''}">Einnahme</button></div>
+    <div class="grid2"><div><label for="kNr">Nummer</label><input id="kNr" value="${esc(k.nr)}" inputmode="numeric"></div>
+    <div><label for="kBud">Budget pro Monat (CHF)</label><input id="kBud" inputmode="decimal" value="${k.budget}"></div></div>
+    <label for="kName">Name</label><input id="kName" value="${esc(k.name)}">
+    <label for="kFix">Fester Posten (kommt jeden Monat zum Bestätigen)</label>
+    <select id="kFix"><option value="">Nein</option><option value="fix" ${k.fix === 'fix' ? 'selected' : ''}>Ja, fix (Betrag immer gleich)</option><option value="variabel" ${k.fix === 'variabel' ? 'selected' : ''}>Ja, variabel (Betrag eintragen, z. B. Lohn)</option></select>
+    <label for="kTag">Fällig am Tag</label><input id="kTag" type="number" min="1" max="28" value="${k.tag || 1}">
+    <details style="margin-top:12px"><summary>Budget für einzelne Monate ${y} anpassen</summary>
+    <p class="muted">Leer lassen = Standardbudget. Beispiel: Steuern nur im März 1'200, sonst 0.</p>
+    <div class="grid2" style="grid-template-columns:repeat(3,1fr)">${monInputs}</div></details>
+    <div class="btns" style="margin-top:16px"><button class="btn" id="sv">Speichern</button><button class="btn sec" id="cx">Abbrechen</button>
+    ${neu ? '' : '<button class="btn danger" id="dl">Löschen</button>'}</div>`,
+    (root, close) => {
+      let typ = k.typ;
+      root.querySelectorAll('#kTyp button').forEach(b => b.onclick = () => { typ = b.dataset.typ; root.querySelectorAll('#kTyp button').forEach(x => x.classList.toggle('on', x === b)); });
+      root.querySelector('#cx').onclick = close;
+      root.querySelector('#sv').onclick = () => {
+        const name = root.querySelector('#kName').value.trim(); const budget = parseBetrag(root.querySelector('#kBud').value || '0');
+        if (!name) return toast('Bitte einen Namen eingeben.');
+        if (budget == null) return toast('Budget ungültig.');
+        const monate = { ...(k.monate || {}) };
+        MONATE.forEach((_, i) => { const ym = `${y}-${pad(i + 1)}`; const v = root.querySelector('#m' + i).value.trim(); if (v === '') delete monate[ym]; else { const p = parseBetrag(v); if (p != null) monate[ym] = p; } });
+        const upd = { nr: root.querySelector('#kNr').value.trim(), name, typ, budget, monate, fix: root.querySelector('#kFix').value,
+          tag: Math.max(1, Math.min(28, +root.querySelector('#kTag').value || 1)), aktiv: true, u: now() };
+        if (neu) S.data.konten.push({ id: uid(), ...upd }); else Object.assign(k, upd);
+        speichere(); close(); render(); toast('Konto gespeichert ✓');
+      };
+      const dl = root.querySelector('#dl');
+      if (dl) dl.onclick = () => {
+        const n = S.data.buchungen.filter(b => b.kontoId === k.id).length;
+        if (!confirm(n ? `Das Konto hat ${n} Buchungen. Es wird ausgeblendet, die Buchungen bleiben erhalten.` : 'Konto löschen?')) return;
+        if (n) { k.aktiv = false; k.u = now(); } else { S.data.konten = S.data.konten.filter(x => x.id !== k.id); S.data.geloescht[k.id] = now(); }
+        speichere(); close(); render();
+      };
+    });
+}
+
+function mandantWahl() {
+  sheet(`<h2>Buchhaltung wählen</h2><ul class="list">${S.mandanten.map(m => `<li class="click" data-id="${m.id}"><div class="grow"><div class="t">${m.id === S.aktiv ? '✓ ' : ''}${esc(m.name)}</div>
+    <div class="muted">${m.repo ? 'GitHub: ' + esc(m.repo) : 'nur auf diesem Gerät'}</div></div></li>`).join('')}</ul>
+    <div class="btns" style="margin-top:12px"><button class="btn sec" id="nm">+ Neue Buchhaltung</button></div>`,
+    (root, close) => {
+      root.querySelectorAll('li[data-id]').forEach(li => li.onclick = () => { S.aktiv = li.dataset.id; speichereMandanten(); ladeDaten(); close(); S.filterKonto = ''; render(); sync(false); });
+      root.querySelector('#nm').onclick = () => { close(); mandantNeu(); };
+    });
+}
+function mandantNeu() {
+  sheet(`<h2>Neue Buchhaltung</h2>
+    <label for="nN">Name</label><input id="nN" placeholder="z. B. Brigitte oder Haushalt gemeinsam">
+    <label for="nV">Kontoplan</label><select id="nV"><option value="excel">Vorlage aus dem Excel</option><option value="kopie">Kopie der aktuellen Buchhaltung (ohne Buchungen)</option><option value="leer">Leer</option><option value="github">Bestehende Buchhaltung von GitHub laden</option></select>
+    <p class="muted">Für eine gemeinsame Buchhaltung: Eine Person legt sie an und lädt die andere im GitHub-Repository als Mitarbeiter ein. Die zweite Person wählt dann „Bestehende Buchhaltung von GitHub laden“.</p>
+    <div id="ghF" style="display:none"><label for="nR">Repository (Benutzer/Name)</label><input id="nR" autocapitalize="off" placeholder="z. B. walter/budget-haushalt">
+    <label for="nT">Zugangsschlüssel (Token)</label><input id="nT" type="password" autocomplete="off"></div>
+    <div class="btns" style="margin-top:16px"><button class="btn" id="ok">Anlegen</button><button class="btn sec" id="cx">Abbrechen</button></div>`,
+    (root, close) => {
+      const sel = root.querySelector('#nV');
+      sel.onchange = () => root.querySelector('#ghF').style.display = sel.value === 'github' ? 'block' : 'none';
+      root.querySelector('#cx').onclick = close;
+      root.querySelector('#ok').onclick = async () => {
+        const name = root.querySelector('#nN').value.trim() || 'Neue Buchhaltung';
+        const v = sel.value, id = uid();
+        const m = { id, name, repo: '', dirty: false };
+        let data = neueDaten(v === 'excel' ? 'excel' : v === 'kopie' ? S.data : null);
+        if (v === 'github') {
+          const repo = root.querySelector('#nR').value.trim().replace(/^https?:\/\/github\.com\//, '').replace(/\/$/, '');
+          const token = root.querySelector('#nT').value.trim();
+          if (!/^[\w.-]+\/[\w.-]+$/.test(repo) || !token) return toast('Bitte Repository und Token angeben.');
+          m.repo = repo; LS.set('budget.token.' + id, token);
+          data = neueDaten(null); data.u = 0;
+        } else if (v === 'leer') data = neueDaten(null);
+        S.mandanten.push(m); S.aktiv = id; LS.set('budget.data.' + id, data); speichereMandanten(); ladeDaten();
+        close(); S.tab = 'start'; render();
+        if (m.repo) await sync(true);
+      };
+    });
+}
+
+/* ---------- GitHub-Abgleich ---------- */
+const b64enc = s => { const bytes = new TextEncoder().encode(s); let bin = ''; for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000)); return btoa(bin); };
+const b64dec = s => new TextDecoder().decode(Uint8Array.from(atob(s.replace(/\s/g, '')), c => c.charCodeAt(0)));
+
+function merge(lokal, remote) {
+  const geloescht = { ...(remote.geloescht || {}), ...(lokal.geloescht || {}) };
+  const mergeArr = (a = [], b = []) => {
+    const map = new Map();
+    for (const x of [...b, ...a]) { const y = map.get(x.id); if (!y || (x.u || 0) >= (y.u || 0)) map.set(x.id, x); }
+    return [...map.values()].filter(x => !geloescht[x.id]);
+  };
+  return { version: 1, start: [lokal.start, remote.start].filter(Boolean).sort()[0] || ymNow(),
+    konten: mergeArr(lokal.konten, remote.konten), buchungen: mergeArr(lokal.buchungen, remote.buchungen), geloescht, u: now() };
+}
+let syncTimer = null;
+function planeSync() { clearTimeout(syncTimer); syncTimer = setTimeout(() => sync(false), 3000); }
+async function sync(laut) {
+  const m = mandant(); if (!m || !m.repo || S.syncing) return;
+  const token = LS.get('budget.token.' + m.id, '');
+  if (!token) { laut && toast('Kein Zugangsschlüssel hinterlegt.'); return; }
+  if (!navigator.onLine) { laut && toast('Offline: Abgleich später.'); return; }
+  S.syncing = true;
+  const btn = document.getElementById('syncBtn'); btn.style.opacity = .5;
+  const url = `https://api.github.com/repos/${m.repo}/contents/data.json`;
+  const hdr = { Authorization: 'Bearer ' + token, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' };
+  const mId = m.id;
+  try {
+    for (let versuch = 0; versuch < 3; versuch++) {
+      const r = await fetch(url + '?t=' + now(), { headers: hdr, cache: 'no-store' });
+      let remote = null, sha;
+      if (r.status === 200) { const j = await r.json(); sha = j.sha; remote = JSON.parse(b64dec(j.content)); }
+      else if (r.status === 404) {
+        const rr = await fetch(`https://api.github.com/repos/${m.repo}`, { headers: hdr });
+        if (rr.status === 404) throw new Error('Repository nicht gefunden oder kein Zugriff. Prüfe Name und Token.');
+        if (rr.ok && !(await rr.json()).private) throw new Error('Das Repository ist öffentlich! Bitte auf „Private“ stellen, sonst kann jeder deine Daten sehen.');
+      }
+      else if (r.status === 401) throw new Error('Zugangsschlüssel ungültig oder abgelaufen.');
+      else if (r.status === 403) throw new Error('Kein Zugriff (403). Hat der Token Schreibrechte auf „Contents“?');
+      else throw new Error('GitHub antwortet mit Fehler ' + r.status);
+      if (S.aktiv !== mId) return;
+      const lokal = LS.get('budget.data.' + mId, S.data);
+      const neu = remote ? (m.uebernehmen ? merge(remote, remote) : merge(lokal, remote)) : lokal;
+      const unveraendert = remote && JSON.stringify({ ...neu, u: 0 }) === JSON.stringify({ ...merge(remote, remote), u: 0 });
+      if (!unveraendert) {
+        const body = { message: `Budget-App: Abgleich ${new Date().toLocaleString('de-CH')}${S.ich ? ' (' + S.ich + ')' : ''}`, content: b64enc(JSON.stringify(neu, null, 1)) };
+        if (sha) body.sha = sha;
+        const p = await fetch(url, { method: 'PUT', headers: { ...hdr, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+        if (p.status === 409 || p.status === 422) continue; // jemand anderes hat gleichzeitig gespeichert: nochmals
+        if (!p.ok) throw new Error(p.status === 403 || p.status === 404 ? 'Keine Schreibrechte. Token braucht „Contents: Read and write“.' : 'Speichern auf GitHub fehlgeschlagen (' + p.status + ')');
+      }
+      S.data = neu; LS.set('budget.data.' + mId, neu);
+      m.dirty = false; m.lastSync = now(); delete m.uebernehmen; speichereMandanten();
+      if (!document.querySelector('.sheet-bg')) render(); else aktualisiereKopf();
+      laut && toast('Abgeglichen ✓');
+      return;
+    }
+    throw new Error('Abgleich mehrmals kollidiert, bitte nochmals versuchen.');
+  } catch (e) {
+    toast(e.message.includes('fetch') ? 'Keine Verbindung zu GitHub.' : e.message);
+  } finally { S.syncing = false; btn.style.opacity = 1; }
+}
+window.addEventListener('online', () => sync(false));
+
+/* ---------- Hilfen ---------- */
+let toastT;
+function toast(t) { const el = document.getElementById('toast'); el.textContent = t; el.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => el.classList.remove('show'), 3200); }
+function download(name, text, type) {
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type })); a.download = name.replace(/[\\/:*?"<>|]/g, '_');
+  document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+}
+
+init();
+
+</script>
+</body>
+</html>

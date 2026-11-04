@@ -112,6 +112,12 @@ tr.click { cursor: pointer; }
 .empty { text-align: center; color: var(--muted); padding: 20px 0; }
 .pill { font-size: 12px; padding: 2px 8px; border-radius: 99px; background: var(--brand-soft); color: var(--brand); }
 
+.belegbox { margin: 4px 0 6px; }
+.belegbox label.btn { display: inline-block; color: var(--brand); margin: 0; font-size: 15px; }
+.belegthumb { display: block; max-width: 100%; max-height: 220px; margin: 10px 0 4px; border-radius: 10px; border: 1px solid var(--line); cursor: zoom-in; }
+#belegStatus { margin-top: 4px; }
+a.btn { text-decoration: none; display: inline-block; }
+
 </style>
 </head>
 <body>
@@ -341,7 +347,7 @@ function vStart() {
 function buchungLi(b) {
   const k = konto(b.kontoId) || { name: '(Konto gelöscht)', typ: 'A' };
   return `<li class="click" data-act="edit:${b.id}"><div class="grow"><div class="t">${esc(b.text || k.name)}</div>
-    <div class="muted">${fmtDate(b.datum)} · ${esc(k.name)}${b.von ? ' · ' + esc(b.von) : ''}</div></div>
+    <div class="muted">${b.beleg ? '📎 ' : ''}${fmtDate(b.datum)} · ${esc(k.name)}${b.von ? ' · ' + esc(b.von) : ''}</div></div>
     <span class="num ${k.typ === 'E' ? 'pos' : ''}">${k.typ === 'E' ? '+' : '−'}${chf(b.betrag)}</span></li>`;
 }
 
@@ -382,12 +388,18 @@ function bindTypSeg(root, b) {
     bindTypSeg(root, b);
   });
 }
+function belegBoxHtml() {
+  return `<div class="belegbox"><div class="btns"><label class="btn sec" for="fFoto">📷 Beleg fotografieren</label><label class="btn sec" for="fDatei">🖼 Bild wählen</label></div>
+    <input id="fFoto" type="file" accept="image/*" capture="environment" hidden><input id="fDatei" type="file" accept="image/*" hidden>
+    <div id="belegVorschau"></div><div id="belegStatus" class="muted"></div></div>`;
+}
 function vNeu() {
   const datum = S.ym === ymNow() ? todayISO() : S.ym + '-01';
-  setTimeout(() => { const root = document.getElementById('view'); bindTypSeg(root, { datum }); root.querySelector('#fBetrag').focus(); }, 0);
-  return `<div class="card"><h2>Neue Buchung</h2><div id="fHolder">${formBuchung({ datum, _typ: 'A' })}</div>
+  S.formBeleg = null;
+  setTimeout(() => { const root = document.getElementById('view'); bindTypSeg(root, { datum }); bindBeleg(root); }, 0);
+  return `<div class="card"><h2>Neue Buchung</h2>${belegBoxHtml()}<div id="fHolder">${formBuchung({ datum, _typ: 'A' })}</div>
     <div style="margin-top:16px"><button class="btn full" data-act="neuSpeichern">Speichern</button></div>
-    <p class="muted" style="margin-top:12px">📷 Beleg fotografieren mit automatischem Auslesen von Betrag und Datum kommt in Version 2.</p></div>`;
+    <p class="muted" style="margin-top:12px">Tipp: Beleg flach hinlegen, gut beleuchten und das ganze Papier ins Bild nehmen. Betrag, Datum und Geschäft werden vorgeschlagen, bitte immer kurz prüfen.</p></div>`;
 }
 
 function vAuswertung() {
@@ -466,7 +478,7 @@ function vEinstellungen() {
     <div class="btns"><button class="btn sec" data-act="csv">Buchungen ${S.ym.slice(0, 4)} als CSV (Excel)</button>
     <button class="btn sec" data-act="backup">Sicherung herunterladen</button>
     <button class="btn sec" data-act="restore">Sicherung einlesen</button></div>
-    <p class="muted">Version 1 · Daten dieser Buchhaltung: ${S.data.buchungen.length} Buchungen, ${S.data.konten.length} Konten</p></div>`;
+    <p class="muted">Version 2 · Daten dieser Buchhaltung: ${S.data.buchungen.length} Buchungen, ${S.data.konten.length} Konten</p></div>`;
 }
 
 // Namensregel: Buchhaltung_<Name>, z. B. Buchhaltung_Brigitte
@@ -499,20 +511,28 @@ const AKT = {
   aw: a => { S.auswertung = a; render(); },
   gotoMonat: ym => { S.ym = ym; S.auswertung = 'monat'; render(); },
   kontoBuch: id => { S.filterKonto = id; zeige('buchungen'); },
-  neuSpeichern: () => {
+  neuSpeichern: async () => {
     const f = leseForm(document.getElementById('view')); if (!f) return;
-    neueBuchung(f); S.ym = ymOf(f.datum); toast('Gespeichert ✓'); zeige('start');
+    const extra = {};
+    if (S.formBeleg) { try { extra.beleg = await speichereBeleg(S.formBeleg, f.datum); } catch (e) { toast('Beleg konnte nicht gespeichert werden: ' + e.message); return; } }
+    S.formBeleg = null;
+    neueBuchung(f, extra); S.ym = ymOf(f.datum); toast('Gespeichert ✓'); zeige('start');
   },
   edit: id => {
     const b = S.data.buchungen.find(x => x.id === id); if (!b) return;
-    sheet(`<h2>Buchung bearbeiten</h2><div id="fHolder">${formBuchung(b)}</div>
+    S.formBeleg = null;
+    sheet(`<h2>Buchung bearbeiten</h2>${belegBoxHtml()}<div id="fHolder">${formBuchung(b)}</div>
       ${b.fixMonat ? `<p class="muted">Fester Posten ${esc(ymLabel(b.fixMonat))}</p>` : ''}
       ${b.von ? `<p class="muted">Erfasst von ${esc(b.von)}</p>` : ''}
       <div class="btns" style="margin-top:16px"><button class="btn" id="sv">Speichern</button><button class="btn sec" id="cx">Abbrechen</button><button class="btn danger" id="dl">Löschen</button></div>`,
       (root, close) => {
-        bindTypSeg(root, b);
+        bindTypSeg(root, b); bindBeleg(root, b);
         root.querySelector('#cx').onclick = close;
-        root.querySelector('#sv').onclick = () => { const f = leseForm(root); if (!f) return; Object.assign(b, f, { u: now() }); speichere(); close(); render(); toast('Gespeichert ✓'); };
+        root.querySelector('#sv').onclick = async () => {
+          const f = leseForm(root); if (!f) return;
+          if (S.formBeleg) { try { f.beleg = await speichereBeleg(S.formBeleg, f.datum); } catch (e) { return toast('Beleg konnte nicht gespeichert werden: ' + e.message); } S.formBeleg = null; }
+          Object.assign(b, f, { u: now() }); speichere(); close(); render(); toast('Gespeichert ✓');
+        };
         root.querySelector('#dl').onclick = () => {
           if (!confirm('Buchung wirklich löschen?')) return;
           S.data.buchungen = S.data.buchungen.filter(x => x.id !== id); S.data.geloescht[id] = now(); speichere(); close(); render(); toast('Gelöscht');
@@ -731,6 +751,7 @@ async function sync(laut) {
         if (!p.ok) throw new Error(p.status === 403 || p.status === 404 ? 'Keine Schreibrechte. Token braucht „Contents: Read and write“.' : 'Speichern auf GitHub fehlgeschlagen (' + p.status + ')');
       }
       S.data = neu; LS.set('budget.data.' + mId, neu);
+      await ladeBelegeHoch(m, hdr);
       m.dirty = false; m.lastSync = now(); delete m.uebernehmen; speichereMandanten();
       if (!document.querySelector('.sheet-bg')) render(); else aktualisiereKopf();
       laut && toast('Abgeglichen ✓');
@@ -742,6 +763,194 @@ async function sync(laut) {
   } finally { S.syncing = false; btn.style.opacity = 1; }
 }
 window.addEventListener('online', () => sync(false));
+
+
+/* ---------- Belege: Foto, Texterkennung, Ablage ---------- */
+// Texterkennung (Tesseract.js) läuft gratis direkt auf dem Gerät. Die Dateien liegen im Ordner ocr/,
+// bei der Einzeldatei-Version (file://) werden sie aus dem Internet geladen.
+const OCR_LOKAL = location.protocol !== 'file:' ? new URL('ocr', location.href).href : null;
+const OCR = OCR_LOKAL
+  ? { lib: OCR_LOKAL + '/tesseract.min.js', worker: OCR_LOKAL + '/worker.min.js', core: OCR_LOKAL, lang: OCR_LOKAL }
+  : { lib: 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js', worker: 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/worker.min.js',
+      core: 'https://cdn.jsdelivr.net/npm/tesseract.js-core@5.1.1', lang: 'https://cdn.jsdelivr.net/npm/@tesseract.js-data/deu@1.0.0/4.0.0_best_int' };
+
+const IDB = {
+  db: null,
+  open() {
+    return this.db || (this.db = new Promise((res, rej) => {
+      const r = indexedDB.open('budget-belege', 1);
+      r.onupgradeneeded = () => r.result.createObjectStore('bilder');
+      r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+    }));
+  },
+  async run(mode, fn) {
+    const db = await this.open();
+    return new Promise((res, rej) => { const t = db.transaction('bilder', mode); const r = fn(t.objectStore('bilder')); t.oncomplete = () => res(r && r.result); t.onerror = () => rej(t.error); });
+  },
+  get(id) { return this.run('readonly', s => s.get(id)); },
+  put(v) { return this.run('readwrite', s => s.put(v, v.id)); },
+  all() { return this.run('readonly', s => s.getAll()); }
+};
+
+function ladeBild(file) {
+  return new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error('Bild nicht lesbar')); i.src = URL.createObjectURL(file); });
+}
+async function verkleinere(file, max = 1600) {
+  let img = null;
+  try { img = await createImageBitmap(file, { imageOrientation: 'from-image' }); } catch { img = await ladeBild(file); }
+  const s = Math.min(1, max / Math.max(img.width, img.height));
+  const c = document.createElement('canvas'); c.width = Math.round(img.width * s); c.height = Math.round(img.height * s);
+  c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+  return new Promise(r => c.toBlob(r, 'image/jpeg', 0.75));
+}
+function ladeSkript(src) {
+  return new Promise((res, rej) => { const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = () => rej(new Error('Texterkennung konnte nicht geladen werden. Beim ersten Mal braucht es Internet.')); document.head.appendChild(s); });
+}
+let ocrWorker = null, ocrFortschritt = null;
+async function erkenneText(blob) {
+  if (!window.Tesseract) await ladeSkript(OCR.lib);
+  if (!ocrWorker) ocrWorker = Tesseract.createWorker('deu', 1, {
+    workerPath: OCR.worker, corePath: OCR.core, langPath: OCR.lang,
+    logger: m => { if (ocrFortschritt) ocrFortschritt(m); }
+  }).catch(e => { ocrWorker = null; throw e; });
+  const w = await ocrWorker;
+  const { data } = await w.recognize(blob);
+  return data.text || '';
+}
+
+// Betrag, Datum und Geschäft aus dem erkannten Text herauslesen
+function leseBeleg(text) {
+  const zeilen = text.split(/\r?\n/).map(z => z.trim()).filter(Boolean);
+  const betragRe = /(\d{1,3}(?:['’`´ ]\d{3})+|\d+)\s?[.,]\s?(\d{2})(?![\d%])/g;
+  const totalRe = /(total|summe|zu\s*zahlen|zahlbetrag|endbetrag|gesamt|betrag\s*chf|rechnungsbetrag)/i;
+  const ausRe = /(mwst|mws|ust|rückgeld|ruckgeld|retour|zurück|rabatt|gegeben|satz|netto|%)/i;
+  const kand = [];
+  zeilen.forEach((z, i) => {
+    for (const m of z.matchAll(betragRe)) {
+      const v = parseFloat(m[1].replace(/['’`´ ]/g, '') + '.' + m[2]);
+      if (v > 0 && v < 100000) kand.push({ v, i, total: totalRe.test(z) && !ausRe.test(z), aus: ausRe.test(z), chf: /chf|fr\.|sfr/i.test(z) });
+    }
+  });
+  let betrag = null;
+  const pick = l => l.length ? Math.max(...l.map(k => k.v)) : null;
+  betrag = pick(kand.filter(k => k.total));
+  if (betrag == null) {
+    // Betrag direkt in der Zeile nach "Total" (bei zweispaltigen Kassenzetteln)
+    const ti = zeilen.findIndex(z => totalRe.test(z) && !ausRe.test(z));
+    if (ti >= 0) betrag = pick(kand.filter(k => k.i === ti + 1 && !k.aus));
+  }
+  if (betrag == null) betrag = pick(kand.filter(k => k.chf && !k.aus));
+  if (betrag == null) betrag = pick(kand.filter(k => !k.aus));
+
+  let datum = null;
+  const heute = todayISO();
+  for (const z of zeilen) {
+    let m = z.match(/(\d{1,2})\s?[.\/-]\s?(\d{1,2})\s?[.\/-]\s?(\d{4}|\d{2})(?!\d)/);
+    let d, mo, y;
+    if (m) { d = +m[1]; mo = +m[2]; y = +m[3]; if (y < 100) y += 2000; }
+    else if ((m = z.match(/(20\d{2})-(\d{2})-(\d{2})/))) { y = +m[1]; mo = +m[2]; d = +m[3]; }
+    else continue;
+    if (d >= 1 && d <= 31 && mo >= 1 && mo <= 12 && y >= 2000) { const iso = `${y}-${pad(mo)}-${pad(d)}`; if (iso <= heute) { datum = iso; break; } }
+  }
+  const g = zeilen.slice(0, 6).find(z => /[A-Za-zÄÖÜäöüéè]{3,}/.test(z) && !/quittung|beleg|kassenbon|rechnung|willkommen|herzlich|kasse|filiale/i.test(z));
+  const geschaeft = g ? g.replace(/[^\wÄÖÜäöüéèàç&.' -]/g, '').replace(/\s+/g, ' ').trim().slice(0, 40) : '';
+  return { betrag, datum, geschaeft };
+}
+const KONTO_HINWEISE = [
+  [/migros|coop|aldi|lidl|denner|volg|spar|landi|manor food|bäckerei|metzgerei|lebensmittel/i, /essen|haushalt/i],
+  [/shell|bp|avia|tamoil|esso|agrola|socar|eni|migrol|tankstelle|benzin|diesel/i, /benzin/i],
+  [/apotheke|amavita|sunstore|drogerie|arzt|praxis|zahnarzt|spital/i, /arzt/i],
+  [/sbb|zvv|bls|postauto|öv|vbl|ticket/i, /sbb|öv/i],
+  [/coiffeur|friseur|hair/i, /coiffeur/i],
+  [/optik|fielmann|visilab|mcoptik|brille/i, /optiker/i],
+  [/swisscom|sunrise|salt|internet|mobile/i, /telefon/i],
+  [/fitness|gym|migros fitness|update/i, /fitness/i]
+];
+function vorschlagKonto(text, typ) {
+  if (!text) return null;
+  const wort = text.toLowerCase().split(/\s+/)[0];
+  const frueher = S.data.buchungen.filter(b => (b.text || '').toLowerCase().startsWith(wort) && konto(b.kontoId) && konto(b.kontoId).typ === typ).sort((a, b) => b.u - a.u)[0];
+  if (frueher) return frueher.kontoId;
+  for (const [re, kre] of KONTO_HINWEISE) if (re.test(text)) { const k = kontenTyp(typ).find(k => kre.test(k.name)); if (k) return k.id; }
+  return null;
+}
+
+function belegPfad(id, datum) { return `belege/${datum.slice(0, 4)}/${datum.slice(5, 7)}/${datum}_${id}.jpg`; }
+async function speichereBeleg(fb, datum) {
+  const pfad = belegPfad(fb.id, datum);
+  await IDB.put({ id: fb.id, mandant: S.aktiv, pfad, blob: fb.blob, hochgeladen: false });
+  return { id: fb.id, pfad };
+}
+async function belegBlob(beleg) {
+  try { const r = await IDB.get(beleg.id); if (r && r.blob) return r.blob; } catch {}
+  const m = mandant(), token = m && LS.get('budget.token.' + m.id, '');
+  if (!m || !m.repo || !token) return null;
+  const r = await fetch(`https://api.github.com/repos/${m.repo}/contents/${beleg.pfad}`, { headers: { Authorization: 'Bearer ' + token, Accept: 'application/vnd.github.raw+json' } });
+  if (!r.ok) return null;
+  const blob = await r.blob();
+  try { await IDB.put({ id: beleg.id, mandant: m.id, pfad: beleg.pfad, blob, hochgeladen: true }); } catch {}
+  return blob;
+}
+const blobB64 = blob => new Promise((res, rej) => { const f = new FileReader(); f.onload = () => res(String(f.result).split(',')[1]); f.onerror = () => rej(f.error); f.readAsDataURL(blob); });
+async function ladeBelegeHoch(m, hdr) {
+  let alle = [];
+  try { alle = (await IDB.all()).filter(r => r.mandant === m.id && !r.hochgeladen); } catch { return; }
+  for (const r of alle) {
+    const p = await fetch(`https://api.github.com/repos/${m.repo}/contents/${r.pfad}`, { method: 'PUT', headers: { ...hdr, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: 'Beleg ' + r.pfad.split('/').pop(), content: await blobB64(r.blob) }) });
+    if (p.ok || p.status === 422) { r.hochgeladen = true; await IDB.put(r); }
+    else break;
+  }
+}
+function zeigeBeleg(blob) {
+  const url = URL.createObjectURL(blob);
+  sheet(`<img src="${url}" alt="Beleg" style="width:100%;border-radius:10px"><div class="btns" style="margin-top:12px"><a class="btn sec" href="${url}" download="Beleg.jpg">Herunterladen</a><button class="btn" id="cx">Schliessen</button></div>`,
+    (root, close) => root.querySelector('#cx').onclick = () => { close(); setTimeout(() => URL.revokeObjectURL(url), 1000); });
+}
+function vorschauSetzen(root, blob) {
+  const box = root.querySelector('#belegVorschau');
+  const url = URL.createObjectURL(blob);
+  box.innerHTML = `<img src="${url}" alt="Beleg" class="belegthumb" title="Antippen zum Vergrössern">`;
+  box.querySelector('img').onclick = () => zeigeBeleg(blob);
+}
+function bindBeleg(root, b) {
+  const status = root.querySelector('#belegStatus');
+  if (b && b.beleg) {
+    status.textContent = 'Beleg wird geladen…';
+    belegBlob(b.beleg).then(bl => { if (bl) { vorschauSetzen(root, bl); status.textContent = 'Gespeicherter Beleg. Neues Foto ersetzt ihn.'; } else status.textContent = 'Beleg auf diesem Gerät nicht verfügbar (Abgleich prüfen).'; })
+      .catch(() => status.textContent = 'Beleg konnte nicht geladen werden.');
+  }
+  const onFile = async e => {
+    const file = e.target.files && e.target.files[0]; e.target.value = '';
+    if (!file) return;
+    try {
+      status.textContent = 'Bild wird vorbereitet…';
+      const blob = await verkleinere(file);
+      S.formBeleg = { id: uid(), blob };
+      vorschauSetzen(root, blob);
+      status.textContent = 'Beleg wird gelesen… (beim ersten Mal kann es etwas dauern)';
+      ocrFortschritt = m => { if (m.status === 'recognizing text') status.textContent = `Beleg wird gelesen… ${Math.round(m.progress * 100)}%`; };
+      const text = await erkenneText(blob);
+      ocrFortschritt = null;
+      const r = leseBeleg(text);
+      const fB = root.querySelector('#fBetrag'), fD = root.querySelector('#fDatum'), fT = root.querySelector('#fText'), fK = root.querySelector('#fKonto');
+      if (r.betrag != null) fB.value = r.betrag.toFixed(2);
+      if (r.datum) fD.value = r.datum;
+      if (r.geschaeft && !fT.value) fT.value = r.geschaeft;
+      const typ = root.querySelector('#fTyp button.on')?.dataset.typ || 'A';
+      const kId = vorschlagKonto(fT.value, typ); if (kId && fK) fK.value = kId;
+      const teile = [];
+      if (r.betrag != null) teile.push('Betrag ' + chf(r.betrag)); if (r.datum) teile.push('Datum ' + fmtDate(r.datum)); if (r.geschaeft) teile.push(r.geschaeft);
+      status.innerHTML = teile.length ? `✓ Erkannt: ${esc(teile.join(' · '))}. <b>Bitte prüfen.</b>` : 'Nichts erkannt. Bitte Betrag und Datum von Hand eintragen. Das Foto wird trotzdem gespeichert.';
+      if (r.betrag == null) fB.focus();
+    } catch (err) {
+      ocrFortschritt = null;
+      status.textContent = (S.formBeleg ? 'Foto übernommen, aber ' : '') + 'Texterkennung fehlgeschlagen: ' + err.message;
+    }
+  };
+  root.querySelector('#fFoto').onchange = onFile;
+  root.querySelector('#fDatei').onchange = onFile;
+}
 
 /* ---------- Hilfen ---------- */
 let toastT;

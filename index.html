@@ -213,17 +213,27 @@ const S = {
 };
 
 function neueDaten(vorlage) {
-  const d = { version: 1, start: ymNow(), konten: [], buchungen: [], geloescht: {}, u: now() };
+  const d = { version: 2, start: ymNow(), konten: [], buchungen: [], geloescht: {}, u: now() };
   if (vorlage === 'excel') {
-    d.konten = SEED.konten.map(k => ({ id: uid(), nr: k.nr, name: k.name, typ: k.typ, budget: k.budget, monate: {},
+    // Kontoplan aus dem Excel, aber ohne Vorgabewerte: Jahresbudget und Monatsbeträge trägt man selbst ein
+    d.konten = SEED.konten.map(k => ({ id: uid(), nr: k.nr, name: k.name, typ: k.typ, jahre: {}, fixBetrag: null,
       fix: k.fix || '', tag: k.tag || 1, aktiv: true, u: now() }));
   } else if (vorlage && vorlage.konten) {
-    d.konten = vorlage.konten.filter(k => k.aktiv !== false).map(k => ({ ...k, id: uid(), monate: { ...k.monate }, u: now() }));
+    d.konten = vorlage.konten.filter(k => k.aktiv !== false).map(k => ({ ...k, id: uid(), jahre: { ...(k.jahre || {}) }, u: now() }));
   }
   return d;
 }
+// Umstellung Version 1 (Monatsbudget) -> Version 2 (Jahresbudget): Budgetwerte werden geleert
+function migriere(d) {
+  if (!d) return d;
+  for (const k of d.konten || []) {
+    if (!k.jahre) { k.jahre = {}; k.fixBetrag = null; delete k.budget; delete k.monate; k.u = now(); }
+  }
+  d.version = 2;
+  return d;
+}
 function mandant() { return S.mandanten.find(m => m.id === S.aktiv); }
-function ladeDaten() { S.data = LS.get('budget.data.' + S.aktiv, null) || neueDaten('excel'); }
+function ladeDaten() { S.data = migriere(LS.get('budget.data.' + S.aktiv, null)) || neueDaten('excel'); }
 function speichereMandanten() { LS.set('budget.mandanten', S.mandanten); LS.set('budget.aktiv', S.aktiv); }
 function speichere(syncSpaeter = true) {
   S.data.u = now();
@@ -257,7 +267,15 @@ function init() {
 /* ---------- Berechnungen ---------- */
 const konto = id => S.data.konten.find(k => k.id === id);
 const kontenTyp = typ => S.data.konten.filter(k => k.typ === typ && k.aktiv !== false).sort((a, b) => String(a.nr).localeCompare(String(b.nr), 'de', { numeric: true }));
-const budgetFuer = (k, ym) => (k.monate && k.monate[ym] != null) ? k.monate[ym] : (k.budget || 0);
+// Jahresbudget eines Kontos; ohne Eintrag gilt der Wert des letzten Jahres mit Budget
+function jahresBudget(k, y) {
+  const j = k.jahre || {}; y = String(y);
+  if (j[y] != null) return j[y];
+  const frueher = Object.keys(j).filter(x => x < y).sort().pop();
+  return frueher ? j[frueher] : 0;
+}
+const budgetFuer = (k, ym) => jahresBudget(k, ym.slice(0, 4)) / 12; // Monat = 1/12 als Richtwert
+const fixBetrag = k => (k.fixBetrag != null && k.fixBetrag > 0) ? k.fixBetrag : null;
 const buchungenIm = ym => S.data.buchungen.filter(b => ymOf(b.datum) === ym);
 function istFuer(kontoId, ym) { let s = 0; for (const b of S.data.buchungen) if (b.kontoId === kontoId && ymOf(b.datum) === ym) s += b.betrag; return s; }
 function summen(ym) {
@@ -319,6 +337,7 @@ function vStart() {
     ${barHtml('A', s.A.soll, s.A.ist)}
     <div class="row muted"><span>${s.A.soll - s.A.ist >= 0 ? 'Noch verfügbar' : 'Über Budget'}</span><span class="num ${s.A.soll - s.A.ist >= 0 ? 'pos' : 'neg'}">${chf0(Math.abs(s.A.soll - s.A.ist))} CHF</span></div>
   </div>
+  ${jahrKarte(ym)}
   <div class="card"><div class="grid2">
     <div><h3>Einnahmen</h3><div class="big" style="font-size:20px">${chf0(s.E.ist)}</div><div class="muted">Budget ${chf0(s.E.soll)}</div></div>
     <div><h3>Saldo</h3><div class="big ${saldo >= 0 ? 'pos' : 'neg'}" style="font-size:20px">${saldo >= 0 ? '+' : ''}${chf0(saldo)}</div><div class="muted">Einnahmen − Ausgaben</div></div>
@@ -326,15 +345,15 @@ function vStart() {
   if (offen.length) {
     h += `<div class="card"><h2>Feste Posten bestätigen <span class="pill">${offen.length}</span></h2><ul class="list">` +
       offen.map(k => `<li><div class="grow"><div class="t">${esc(k.name)}</div>
-        <div class="muted">${k.typ === 'E' ? 'Einnahme' : 'Ausgabe'} · ${k.fix === 'variabel' ? 'variabel, ca. ' : ''}${chf(budgetFuer(k, ym))} CHF</div></div>
+        <div class="muted">${k.typ === 'E' ? 'Einnahme' : 'Ausgabe'} · ${fixBetrag(k) ? (k.fix === 'variabel' ? 'variabel, ca. ' : '') + chf(fixBetrag(k)) + ' CHF' : 'Betrag eintragen'}</div></div>
         <button class="btn sec sm" data-act="fixSkip:${k.id}" title="Diesen Monat entfällt">entfällt</button>
-        <button class="btn sm" data-act="fixOk:${k.id}">${k.fix === 'variabel' ? 'Betrag…' : '✓'}</button></li>`).join('') +
-      `</ul>${offen.some(k => k.fix === 'fix') ? `<div class="btns" style="margin-top:8px"><button class="btn sec sm" data-act="fixAlle">Alle fixen bestätigen</button></div>` : ''}</div>`;
+        <button class="btn sm" data-act="fixOk:${k.id}">${k.fix === 'fix' && fixBetrag(k) ? '✓' : 'Betrag…'}</button></li>`).join('') +
+      `</ul>${offen.some(k => k.fix === 'fix' && fixBetrag(k)) ? `<div class="btns" style="margin-top:8px"><button class="btn sec sm" data-act="fixAlle">Alle fixen bestätigen</button></div>` : ''}</div>`;
   } else if (ym >= S.data.start && ym <= ymNow() && S.data.konten.some(k => k.fix)) {
     h += `<div class="card muted">✓ Alle festen Posten für diesen Monat sind bestätigt.</div>`;
   }
   // Konten über Budget
-  const ueber = kontenTyp('A').map(k => ({ k, soll: budgetFuer(k, ym), ist: istFuer(k.id, ym) })).filter(x => x.ist > x.soll).sort((a, b) => (b.ist - b.soll) - (a.ist - a.soll));
+  const ueber = kontenTyp('A').map(k => ({ k, soll: budgetFuer(k, ym), ist: istFuer(k.id, ym) })).filter(x => x.soll > 0 && x.ist > x.soll).sort((a, b) => (b.ist - b.soll) - (a.ist - a.soll));
   if (ueber.length) {
     h += `<div class="card"><h2>Über Budget</h2><ul class="list">` + ueber.slice(0, 5).map(x =>
       `<li><span class="dot ${ampel('A', x.soll, x.ist)}"></span><div class="grow t">${esc(x.k.name)}</div><span class="num neg">−${chf(x.ist - x.soll)}</span></li>`).join('') + `</ul></div>`;
@@ -343,6 +362,27 @@ function vStart() {
   h += `<div class="card"><div class="row"><h2>Letzte Buchungen</h2><button class="btn sec sm" data-act="tab:buchungen">alle</button></div>` +
     (letzte.length ? `<ul class="list">${letzte.map(buchungLi).join('')}</ul>` : `<div class="empty">Noch keine Buchungen in diesem Monat.</div>`) + `</div>`;
   return h;
+}
+function jahrKarte(ym) {
+  const y = ym.slice(0, 4);
+  let soll = 0, ist = 0;
+  for (const k of kontenTyp('A')) soll += jahresBudget(k, y);
+  for (const b of S.data.buchungen) { if (!b.datum.startsWith(y)) continue; const k = konto(b.kontoId); if (k && k.typ === 'A') ist += b.betrag; }
+  if (!soll) return `<div class="card"><h3>Jahresbudget ${y}</h3><p class="muted">Noch kein Jahresbudget erfasst.</p><button class="btn sec sm" data-act="jahrBudget">Jahresbudget ${y} erfassen</button></div>`;
+  const anteil = sollAnteil(y), sollBis = soll * anteil;
+  return `<div class="card"><h3>Ausgaben Jahr ${y}</h3>
+    <div class="row"><span class="big" style="font-size:20px">${chf0(ist)}</span><span class="muted">von ${chf0(soll)} CHF · ${Math.round(ist / soll * 100)}%</span></div>
+    ${barHtml('A', soll, ist)}
+    <div class="row muted"><span>Soll bis heute${S.data.start.startsWith(y) && S.data.start > y + '-01' ? ' (seit ' + MK[+S.data.start.slice(5) - 1] + ')' : ''}</span><span class="num ${ist <= sollBis ? 'pos' : 'neg'}">${chf0(sollBis)} CHF</span></div></div>`;
+}
+// Anteil des Jahres, der bis heute vergangen ist (ganzes Jahr = 1)
+function sollAnteil(y) {
+  const jetzt = ymNow().slice(0, 4);
+  if (y < jetzt) return 1; if (y > jetzt) return 0;
+  // Erst ab Beginn der Erfassung zählen, sonst wäre das Soll im ersten Jahr viel zu hoch
+  const d = new Date(), jan = new Date(d.getFullYear(), 0, 1), ende = new Date(d.getFullYear() + 1, 0, 1);
+  const st = S.data.start && S.data.start.startsWith(y) ? new Date(+y, +S.data.start.slice(5) - 1, 1) : jan;
+  return Math.max(0, (d - st) / (ende - jan));
 }
 function buchungLi(b) {
   const k = konto(b.kontoId) || { name: '(Konto gelöscht)', typ: 'A' };
@@ -447,21 +487,38 @@ function awJahr() {
     <tr><th>Monat</th><th class="n">Budget</th><th class="n">Ausgaben</th><th class="n">Abw.</th><th class="n">Einnahmen</th><th class="n">Saldo kum.</th></tr>${rows}
     <tr class="sum"><td>Total</td><td class="n">${chf0(tAs)}</td><td class="n">${chf0(tA)}</td><td class="n ${tD < 0 ? 'neg' : 'pos'}">${tD > 0 ? '+' : ''}${chf0(tD)}</td><td class="n">${chf0(tE)}</td><td class="n ${kum < 0 ? 'neg' : ''}">${chf0(kum)}</td></tr></table></div>
     <p class="muted">Abweichung nur für Monate seit Beginn der Erfassung (${esc(ymLabel(S.data.start))}) bis heute. Budget Einnahmen Jahr: ${chf0(tEs)} CHF. Tippe auf einen Monat für Details.</p></div>` +
-    (monateBis.length ? kontoTabelle('A', k => monateBis.reduce((s, m) => s + budgetFuer(k, m), 0), k => monateBis.reduce((s, m) => s + istFuer(k.id, m), 0), `Ausgaben pro Konto ${MK[+monateBis[0].slice(5) - 1]}–${MK[+monateBis.at(-1).slice(5) - 1]}`, 'Budget') +
-      kontoTabelle('E', k => monateBis.reduce((s, m) => s + budgetFuer(k, m), 0), k => monateBis.reduce((s, m) => s + istFuer(k.id, m), 0), `Einnahmen pro Konto ${MK[+monateBis[0].slice(5) - 1]}–${MK[+monateBis.at(-1).slice(5) - 1]}`, 'Budget') : '');
+    jahrTabelle('A', y) + jahrTabelle('E', y);
+}
+
+function jahrTabelle(typ, y) {
+  const anteil = sollAnteil(y);
+  let tb = 0, ti = 0;
+  const istJ = id => S.data.buchungen.reduce((s, b) => s + (b.kontoId === id && b.datum.startsWith(y) ? b.betrag : 0), 0);
+  const rows = kontenTyp(typ).map(k => {
+    const bud = jahresBudget(k, y), ist = istJ(k.id); tb += bud; ti += ist;
+    if (!bud && !ist) return '';
+    const rest = typ === 'A' ? bud - ist : ist - bud;
+    return `<tr class="click" data-act="kontoBuch:${k.id}"><td><span class="dot ${ampel(typ, bud * anteil, ist)}"></span>${esc(k.name)}</td><td class="n">${chf0(bud)}</td><td class="n">${chf0(ist)}</td><td class="n">${bud ? Math.round(ist / bud * 100) + '%' : '–'}</td><td class="n ${rest < 0 ? 'neg' : ''}">${chf0(rest)}</td></tr>`;
+  }).join('');
+  const rest = typ === 'A' ? tb - ti : ti - tb;
+  return `<div class="card"><h2>${typ === 'A' ? 'Ausgaben' : 'Einnahmen'} pro Konto ${y}</h2><div class="tablewrap"><table>
+    <tr><th>Konto</th><th class="n">Budget Jahr</th><th class="n">Ist</th><th class="n">%</th><th class="n">${typ === 'A' ? 'Rest' : 'Diff.'}</th></tr>${rows || '<tr><td colspan="5" class="muted">Noch kein Budget und keine Buchungen.</td></tr>'}
+    <tr class="sum"><td>Total</td><td class="n">${chf0(tb)}</td><td class="n">${chf0(ti)}</td><td class="n">${tb ? Math.round(ti / tb * 100) + '%' : '–'}</td><td class="n ${rest < 0 ? 'neg' : ''}">${chf0(rest)}</td></tr></table></div>
+    <p class="muted">Soll bis heute: ${Math.round(anteil * 100)}% des Jahresbudgets${S.data.start.startsWith(y) && S.data.start > y + '-01' ? ' (gezählt ab Beginn der Erfassung im ' + MONATE[+S.data.start.slice(5) - 1] + ')' : ''}. Die Ampel vergleicht das Ist damit.</p></div>`;
 }
 
 function vEinstellungen() {
   const m = mandant();
   const konten = t => kontenTyp(t).map(k => `<li class="click" data-act="kontoEdit:${k.id}"><div class="grow"><div class="t">${esc(k.nr)} ${esc(k.name)}</div>
-    <div class="muted">${chf(k.budget)} CHF/Monat${Object.keys(k.monate || {}).length ? ' · mit Monatsanpassungen' : ''}${k.fix ? ' · fester Posten (' + k.fix + ')' : ''}</div></div><span class="muted">›</span></li>`).join('');
+    <div class="muted">${jahresBudget(k, S.ym.slice(0, 4)) ? chf0(jahresBudget(k, S.ym.slice(0, 4))) + ' CHF/Jahr' : 'kein Budget'}${k.fix ? ' · fester Posten' + (fixBetrag(k) ? ' ' + chf(fixBetrag(k)) + '/Monat' : '') : ''}</div></div><span class="muted">›</span></li>`).join('');
   return `<div class="card"><h2>Buchhaltung</h2>
     <label for="sName">Name dieser Buchhaltung</label><input id="sName" value="${esc(m.name)}" data-act="setName">
     <label for="sIch">Dein Name (wird bei Buchungen vermerkt)</label><input id="sIch" value="${esc(S.ich)}" placeholder="z. B. Walter" data-act="setIch">
     <div class="btns" style="margin-top:12px"><button class="btn sec" data-act="mandantNeu">+ Neue Buchhaltung</button>
     ${S.mandanten.length > 1 ? `<button class="btn danger" data-act="mandantLoeschen">Diese Buchhaltung auf diesem Gerät entfernen</button>` : ''}</div></div>
 
-    <div class="card"><h2>Kontoplan und Budget</h2><p class="muted">Antippen zum Ändern: Name, Budget, Monatsanpassungen, fester Posten.</p>
+    <div class="card"><h2>Kontoplan und Budget</h2><p class="muted">Budget gilt pro Jahr. Antippen zum Ändern von Name, Budget und festem Posten.</p>
+    <div class="btns" style="margin:8px 0"><button class="btn" data-act="jahrBudget">Jahresbudget ${S.ym.slice(0, 4)} erfassen</button></div>
     <h3 style="margin-top:12px">Ausgaben</h3><ul class="list">${konten('A')}</ul>
     <h3 style="margin-top:12px">Einnahmen</h3><ul class="list">${konten('E')}</ul>
     <div class="btns" style="margin-top:10px"><button class="btn sec" data-act="kontoEdit:neu">+ Konto hinzufügen</button></div></div>
@@ -478,7 +535,7 @@ function vEinstellungen() {
     <div class="btns"><button class="btn sec" data-act="csv">Buchungen ${S.ym.slice(0, 4)} als CSV (Excel)</button>
     <button class="btn sec" data-act="backup">Sicherung herunterladen</button>
     <button class="btn sec" data-act="restore">Sicherung einlesen</button></div>
-    <p class="muted">Version 2 · Daten dieser Buchhaltung: ${S.data.buchungen.length} Buchungen, ${S.data.konten.length} Konten</p></div>`;
+    <p class="muted">Version 3 · Daten dieser Buchhaltung: ${S.data.buchungen.length} Buchungen, ${S.data.konten.length} Konten</p></div>`;
 }
 
 // Namensregel: Buchhaltung_<Name>, z. B. Buchhaltung_Brigitte
@@ -540,11 +597,12 @@ const AKT = {
       });
   },
   fixOk: id => {
-    const k = konto(id), ym = S.ym, betrag = budgetFuer(k, ym);
+    const k = konto(id), ym = S.ym, betrag = fixBetrag(k);
     const datum = `${ym}-${pad(Math.min(k.tag || 1, 28))}`;
-    if (k.fix === 'fix') { neueBuchung({ betrag, datum, kontoId: k.id, text: k.name }, { fixKonto: k.id, fixMonat: ym }); render(); toast(`${k.name} bestätigt ✓`); return; }
-    sheet(`<h2>${esc(k.name)}</h2><p class="muted">Budget ${chf(betrag)} CHF. Trage den effektiven Betrag ein.</p>
-      <label for="vB">Betrag CHF</label><input id="vB" inputmode="decimal" value="${betrag}">
+    if (k.fix === 'fix' && betrag) { neueBuchung({ betrag, datum, kontoId: k.id, text: k.name }, { fixKonto: k.id, fixMonat: ym }); render(); toast(`${k.name} bestätigt ✓`); return; }
+    sheet(`<h2>${esc(k.name)}</h2><p class="muted">${betrag ? 'Üblich ' + chf(betrag) + ' CHF. ' : ''}Trage den effektiven Betrag ein.</p>
+      <label for="vB">Betrag CHF</label><input id="vB" inputmode="decimal" value="${betrag || ''}">
+      ${k.fix === 'fix' && !betrag ? '<label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="vMerk" style="width:auto" checked> Betrag für die nächsten Monate merken</label>' : ''}
       <label for="vD">Datum</label><input id="vD" type="date" value="${datum}">
       <div class="btns" style="margin-top:16px"><button class="btn" id="ok">Bestätigen</button><button class="btn sec" id="cx">Abbrechen</button></div>`,
       (root, close) => {
@@ -552,6 +610,7 @@ const AKT = {
         root.querySelector('#cx').onclick = close;
         root.querySelector('#ok').onclick = () => {
           const b = parseBetrag(inp.value); if (b == null) return toast('Bitte einen gültigen Betrag eingeben.');
+          const merk = root.querySelector('#vMerk'); if (merk && merk.checked) { k.fixBetrag = b; k.u = now(); }
           neueBuchung({ betrag: b, datum: root.querySelector('#vD').value || datum, kontoId: k.id, text: k.name }, { fixKonto: k.id, fixMonat: ym });
           close(); render(); toast(`${k.name} bestätigt ✓`);
         };
@@ -564,14 +623,15 @@ const AKT = {
     render();
   },
   fixAlle: () => {
-    const ym = S.ym, liste = offeneFixposten(ym).filter(k => k.fix === 'fix');
-    if (!confirm(`${liste.length} feste Posten mit dem Budgetbetrag bestätigen?`)) return;
-    for (const k of liste) S.data.buchungen.push({ id: uid(), betrag: budgetFuer(k, ym), datum: `${ym}-${pad(Math.min(k.tag || 1, 28))}`, kontoId: k.id, text: k.name, von: S.ich || '', u: now(), fixKonto: k.id, fixMonat: ym });
+    const ym = S.ym, liste = offeneFixposten(ym).filter(k => k.fix === 'fix' && fixBetrag(k));
+    if (!confirm(`${liste.length} feste Posten mit ihrem Monatsbetrag bestätigen?`)) return;
+    for (const k of liste) S.data.buchungen.push({ id: uid(), betrag: fixBetrag(k), datum: `${ym}-${pad(Math.min(k.tag || 1, 28))}`, kontoId: k.id, text: k.name, von: S.ich || '', u: now(), fixKonto: k.id, fixMonat: ym });
     speichere(); render(); toast(`${liste.length} Posten bestätigt ✓`);
   },
   setName: (_, el) => { mandant().name = el.value.trim() || 'Buchhaltung'; speichereMandanten(); aktualisiereKopf(); },
   setIch: (_, el) => { S.ich = el.value.trim(); LS.set('budget.ich', S.ich); },
   kontoEdit: id => kontoSheet(id === 'neu' ? null : konto(id)),
+  jahrBudget: () => jahrBudgetSheet(),
   mandantNeu: () => mandantNeu(),
   mandantLoeschen: () => {
     const m = mandant();
@@ -618,21 +678,18 @@ const AKT = {
 
 function kontoSheet(k) {
   const neu = !k;
-  k = k || { nr: '', name: '', typ: 'A', budget: 0, monate: {}, fix: '', tag: 1 };
-  const y = S.ym.slice(0, 4);
-  const monInputs = MONATE.map((_, i) => { const ym = `${y}-${pad(i + 1)}`; const v = k.monate && k.monate[ym] != null ? k.monate[ym] : '';
-    return `<div><label for="m${i}">${MK[i]}</label><input id="m${i}" inputmode="decimal" placeholder="${chf(k.budget)}" value="${v}"></div>`; }).join('');
+  k = k || { nr: '', name: '', typ: 'A', jahre: {}, fixBetrag: null, fix: '', tag: 1 };
+  const y = S.ym.slice(0, 4), jb = (k.jahre || {})[y];
   sheet(`<h2>${neu ? 'Neues Konto' : 'Konto bearbeiten'}</h2>
     <div class="seg" id="kTyp"><button type="button" data-typ="A" class="${k.typ === 'A' ? 'on' : ''}">Ausgabe</button><button type="button" data-typ="E" class="${k.typ === 'E' ? 'on' : ''}">Einnahme</button></div>
     <div class="grid2"><div><label for="kNr">Nummer</label><input id="kNr" value="${esc(k.nr)}" inputmode="numeric"></div>
-    <div><label for="kBud">Budget pro Monat (CHF)</label><input id="kBud" inputmode="decimal" value="${k.budget}"></div></div>
+    <div><label for="kBud">Budget Jahr ${y} (CHF)</label><input id="kBud" inputmode="decimal" value="${jb != null ? jb : ''}" placeholder="${jahresBudget(k, y) ? chf0(jahresBudget(k, y)) : 'leer'}"></div></div>
     <label for="kName">Name</label><input id="kName" value="${esc(k.name)}">
     <label for="kFix">Fester Posten (kommt jeden Monat zum Bestätigen)</label>
     <select id="kFix"><option value="">Nein</option><option value="fix" ${k.fix === 'fix' ? 'selected' : ''}>Ja, fix (Betrag immer gleich)</option><option value="variabel" ${k.fix === 'variabel' ? 'selected' : ''}>Ja, variabel (Betrag eintragen, z. B. Lohn)</option></select>
-    <label for="kTag">Fällig am Tag</label><input id="kTag" type="number" min="1" max="28" value="${k.tag || 1}">
-    <details style="margin-top:12px"><summary>Budget für einzelne Monate ${y} anpassen</summary>
-    <p class="muted">Leer lassen = Standardbudget. Beispiel: Steuern nur im März 1'200, sonst 0.</p>
-    <div class="grid2" style="grid-template-columns:repeat(3,1fr)">${monInputs}</div></details>
+    <div class="grid2"><div><label for="kFB">Betrag pro Monat</label><input id="kFB" inputmode="decimal" value="${k.fixBetrag != null ? k.fixBetrag : ''}" placeholder="leer"></div>
+    <div><label for="kTag">Fällig am Tag</label><input id="kTag" type="number" min="1" max="28" value="${k.tag || 1}"></div></div>
+    <p class="muted">Der Monatsbetrag wird nur bei festen Posten zum Bestätigen vorgeschlagen.</p>
     <div class="btns" style="margin-top:16px"><button class="btn" id="sv">Speichern</button><button class="btn sec" id="cx">Abbrechen</button>
     ${neu ? '' : '<button class="btn danger" id="dl">Löschen</button>'}</div>`,
     (root, close) => {
@@ -640,12 +697,14 @@ function kontoSheet(k) {
       root.querySelectorAll('#kTyp button').forEach(b => b.onclick = () => { typ = b.dataset.typ; root.querySelectorAll('#kTyp button').forEach(x => x.classList.toggle('on', x === b)); });
       root.querySelector('#cx').onclick = close;
       root.querySelector('#sv').onclick = () => {
-        const name = root.querySelector('#kName').value.trim(); const budget = parseBetrag(root.querySelector('#kBud').value || '0');
+        const name = root.querySelector('#kName').value.trim();
         if (!name) return toast('Bitte einen Namen eingeben.');
-        if (budget == null) return toast('Budget ungültig.');
-        const monate = { ...(k.monate || {}) };
-        MONATE.forEach((_, i) => { const ym = `${y}-${pad(i + 1)}`; const v = root.querySelector('#m' + i).value.trim(); if (v === '') delete monate[ym]; else { const p = parseBetrag(v); if (p != null) monate[ym] = p; } });
-        const upd = { nr: root.querySelector('#kNr').value.trim(), name, typ, budget, monate, fix: root.querySelector('#kFix').value,
+        const bv = root.querySelector('#kBud').value.trim(), fv = root.querySelector('#kFB').value.trim();
+        const budget = bv === '' ? null : parseBetrag(bv), fb = fv === '' ? null : parseBetrag(fv);
+        if (bv !== '' && budget == null) return toast('Budget ungültig.');
+        if (fv !== '' && fb == null) return toast('Monatsbetrag ungültig.');
+        const jahre = { ...(k.jahre || {}) }; if (budget == null) delete jahre[y]; else jahre[y] = budget;
+        const upd = { nr: root.querySelector('#kNr').value.trim(), name, typ, jahre, fixBetrag: fb, fix: root.querySelector('#kFix').value,
           tag: Math.max(1, Math.min(28, +root.querySelector('#kTag').value || 1)), aktiv: true, u: now() };
         if (neu) S.data.konten.push({ id: uid(), ...upd }); else Object.assign(k, upd);
         speichere(); close(); render(); toast('Konto gespeichert ✓');
@@ -656,6 +715,37 @@ function kontoSheet(k) {
         if (!confirm(n ? `Das Konto hat ${n} Buchungen. Es wird ausgeblendet, die Buchungen bleiben erhalten.` : 'Konto löschen?')) return;
         if (n) { k.aktiv = false; k.u = now(); } else { S.data.konten = S.data.konten.filter(x => x.id !== k.id); S.data.geloescht[k.id] = now(); }
         speichere(); close(); render();
+      };
+    });
+}
+
+function jahrBudgetSheet() {
+  const y = S.ym.slice(0, 4);
+  const zeile = k => { const v = (k.jahre || {})[y];
+    return `<div class="row" style="margin:6px 0"><label for="jb_${k.id}" style="margin:0;flex:1;color:var(--text)">${esc(k.name)}</label>
+      <input id="jb_${k.id}" data-id="${k.id}" inputmode="decimal" style="width:120px;text-align:right" value="${v != null ? v : ''}" placeholder="${jahresBudget(k, y) ? chf0(jahresBudget(k, y)) : '0'}"></div>`; };
+  sheet(`<h2>Jahresbudget ${y}</h2><p class="muted">Betrag fürs ganze Jahr in CHF. Leer = kein Budget${Object.values(S.data.konten).some(k => Object.keys(k.jahre || {}).some(x => x < y)) ? ' (grau: Wert vom Vorjahr wird übernommen)' : ''}.</p>
+    <h3 style="margin-top:12px">Ausgaben</h3>${kontenTyp('A').map(zeile).join('')}
+    <div class="row" style="margin:8px 0;font-weight:700"><span>Total Ausgaben</span><span id="jbTA" class="num"></span></div>
+    <h3 style="margin-top:12px">Einnahmen</h3>${kontenTyp('E').map(zeile).join('')}
+    <div class="row" style="margin:8px 0;font-weight:700"><span>Total Einnahmen</span><span id="jbTE" class="num"></span></div>
+    <div class="btns" style="margin-top:16px"><button class="btn" id="sv">Speichern</button><button class="btn sec" id="cx">Abbrechen</button></div>`,
+    (root, close) => {
+      const totale = () => {
+        const t = { A: 0, E: 0 };
+        root.querySelectorAll('input[data-id]').forEach(i => { const k = konto(i.dataset.id); const v = i.value.trim() === '' ? jahresBudget(k, y) : (parseBetrag(i.value) || 0); t[k.typ] += v; });
+        root.querySelector('#jbTA').textContent = chf0(t.A) + ' CHF'; root.querySelector('#jbTE').textContent = chf0(t.E) + ' CHF';
+      };
+      root.querySelectorAll('input[data-id]').forEach(i => i.oninput = totale); totale();
+      root.querySelector('#cx').onclick = close;
+      root.querySelector('#sv').onclick = () => {
+        for (const i of root.querySelectorAll('input[data-id]')) {
+          const k = konto(i.dataset.id), v = i.value.trim();
+          if (v !== '' && parseBetrag(v) == null) { i.focus(); return toast('Ungültiger Betrag bei ' + k.name); }
+          const alt = (k.jahre || {})[y], neu = v === '' ? undefined : parseBetrag(v);
+          if (alt !== neu) { k.jahre = { ...(k.jahre || {}) }; if (neu === undefined) delete k.jahre[y]; else k.jahre[y] = neu; k.u = now(); }
+        }
+        speichere(); close(); render(); toast('Jahresbudget gespeichert ✓');
       };
     });
 }
@@ -711,7 +801,7 @@ function merge(lokal, remote) {
     for (const x of [...b, ...a]) { const y = map.get(x.id); if (!y || (x.u || 0) >= (y.u || 0)) map.set(x.id, x); }
     return [...map.values()].filter(x => !geloescht[x.id]);
   };
-  return { version: 1, start: [lokal.start, remote.start].filter(Boolean).sort()[0] || ymNow(),
+  return { version: 2, start: [lokal.start, remote.start].filter(Boolean).sort()[0] || ymNow(),
     konten: mergeArr(lokal.konten, remote.konten), buchungen: mergeArr(lokal.buchungen, remote.buchungen), geloescht, u: now() };
 }
 let syncTimer = null;
@@ -730,7 +820,7 @@ async function sync(laut) {
     for (let versuch = 0; versuch < 3; versuch++) {
       const r = await fetch(url + '?t=' + now(), { headers: hdr, cache: 'no-store' });
       let remote = null, sha;
-      if (r.status === 200) { const j = await r.json(); sha = j.sha; remote = JSON.parse(b64dec(j.content)); }
+      if (r.status === 200) { const j = await r.json(); sha = j.sha; remote = migriere(JSON.parse(b64dec(j.content))); }
       else if (r.status === 404) {
         const rr = await fetch(`https://api.github.com/repos/${m.repo}`, { headers: hdr });
         if (rr.status === 404) throw new Error('Repository nicht gefunden oder kein Zugriff. Prüfe Name und Token.');
@@ -740,7 +830,7 @@ async function sync(laut) {
       else if (r.status === 403) throw new Error('Kein Zugriff (403). Hat der Token Schreibrechte auf „Contents“?');
       else throw new Error('GitHub antwortet mit Fehler ' + r.status);
       if (S.aktiv !== mId) return;
-      const lokal = LS.get('budget.data.' + mId, S.data);
+      const lokal = migriere(LS.get('budget.data.' + mId, S.data));
       const neu = remote ? (m.uebernehmen ? merge(remote, remote) : merge(lokal, remote)) : lokal;
       const unveraendert = remote && JSON.stringify({ ...neu, u: 0 }) === JSON.stringify({ ...merge(remote, remote), u: 0 });
       if (!unveraendert) {

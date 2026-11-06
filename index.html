@@ -254,6 +254,7 @@ function init() {
   }
   if (!mandant()) S.aktiv = S.mandanten[0].id;
   ladeDaten();
+  const eingeladen = pruefeEinladung();
   document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => zeige(b.dataset.tab));
   document.getElementById('prevM').onclick = () => { S.ym = ymAdd(S.ym, -1); render(); };
   document.getElementById('nextM').onclick = () => { S.ym = ymAdd(S.ym, 1); render(); };
@@ -261,7 +262,8 @@ function init() {
   document.getElementById('syncBtn').onclick = () => sync(true);
   render();
   if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(() => {});
-  setTimeout(() => sync(false), 400);
+  setTimeout(() => sync(eingeladen), 400);
+  window.addEventListener('hashchange', () => { if (pruefeEinladung()) { render(); sync(true); } });
 }
 
 /* ---------- Berechnungen ---------- */
@@ -558,8 +560,24 @@ function sheet(html, onBind) {
 }
 
 /* ---------- Aktionen ---------- */
+/* ---------- Protokoll ---------- */
+// Jede Änderung wird lokal gesammelt und beim Abgleich an protokoll/JJJJ-MM.jsonl im Repository angehängt.
+function geraet() {
+  const ua = navigator.userAgent;
+  const os = /Android/i.test(ua) ? 'Android' : /iPhone|iPad/i.test(ua) ? 'iPhone' : /Windows/i.test(ua) ? 'Windows' : /Mac/i.test(ua) ? 'Mac' : 'Gerät';
+  const br = /Edg\//.test(ua) ? 'Edge' : /Chrome\//.test(ua) ? 'Chrome' : /Firefox\//.test(ua) ? 'Firefox' : /Safari\//.test(ua) ? 'Safari' : '';
+  return (os + ' ' + br).trim();
+}
+function protokoll(aktion, eintrag) {
+  const q = LS.get('budget.log.' + S.aktiv, []);
+  q.push({ zeit: new Date().toISOString(), wer: S.ich || '(ohne Namen)', geraet: geraet(), aktion, ...eintrag });
+  LS.set('budget.log.' + S.aktiv, q);
+}
+const logBuchung = (b, extra = {}) => { const k = konto(b.kontoId) || {}; return { objekt: 'Buchung', id: b.id, datum: b.datum, konto: (k.nr ? k.nr + ' ' : '') + (k.name || ''), text: b.text || '', beleg: !!b.beleg, ...extra }; };
 function neueBuchung(f, extra = {}) {
-  S.data.buchungen.push({ id: uid(), ...f, von: S.ich || '', u: now(), ...extra });
+  const b = { id: uid(), ...f, von: S.ich || '', u: now(), ...extra };
+  S.data.buchungen.push(b);
+  protokoll('neu', logBuchung(b, { betrag_neu: b.betrag }));
   speichere();
 }
 const AKT = {
@@ -588,10 +606,15 @@ const AKT = {
         root.querySelector('#sv').onclick = async () => {
           const f = leseForm(root); if (!f) return;
           if (S.formBeleg) { try { f.beleg = await speichereBeleg(S.formBeleg, f.datum); } catch (e) { return toast('Beleg konnte nicht gespeichert werden: ' + e.message); } S.formBeleg = null; }
-          Object.assign(b, f, { u: now() }); speichere(); close(); render(); toast('Gespeichert ✓');
+          const alt = { betrag: b.betrag, datum: b.datum, kontoId: b.kontoId, text: b.text };
+          Object.assign(b, f, { u: now() });
+          const geaendert = Object.keys(alt).filter(x => alt[x] !== b[x]);
+          if (geaendert.length || f.beleg) protokoll('geändert', logBuchung(b, { betrag_alt: alt.betrag, betrag_neu: b.betrag, felder: geaendert.concat(f.beleg ? ['beleg'] : []).join(', ') }));
+          speichere(); close(); render(); toast('Gespeichert ✓');
         };
         root.querySelector('#dl').onclick = () => {
           if (!confirm('Buchung wirklich löschen?')) return;
+          protokoll('gelöscht', logBuchung(b, { betrag_alt: b.betrag }));
           S.data.buchungen = S.data.buchungen.filter(x => x.id !== id); S.data.geloescht[id] = now(); speichere(); close(); render(); toast('Gelöscht');
         };
       });
@@ -625,7 +648,8 @@ const AKT = {
   fixAlle: () => {
     const ym = S.ym, liste = offeneFixposten(ym).filter(k => k.fix === 'fix' && fixBetrag(k));
     if (!confirm(`${liste.length} feste Posten mit ihrem Monatsbetrag bestätigen?`)) return;
-    for (const k of liste) S.data.buchungen.push({ id: uid(), betrag: fixBetrag(k), datum: `${ym}-${pad(Math.min(k.tag || 1, 28))}`, kontoId: k.id, text: k.name, von: S.ich || '', u: now(), fixKonto: k.id, fixMonat: ym });
+    for (const k of liste) { const b = { id: uid(), betrag: fixBetrag(k), datum: `${ym}-${pad(Math.min(k.tag || 1, 28))}`, kontoId: k.id, text: k.name, von: S.ich || '', u: now(), fixKonto: k.id, fixMonat: ym };
+      S.data.buchungen.push(b); protokoll('neu', logBuchung(b, { betrag_neu: b.betrag, felder: 'fester Posten' })); }
     speichere(); render(); toast(`${liste.length} Posten bestätigt ✓`);
   },
   setName: (_, el) => { mandant().name = el.value.trim() || 'Buchhaltung'; speichereMandanten(); aktualisiereKopf(); },
@@ -669,7 +693,7 @@ const AKT = {
         const d = JSON.parse(await i.files[0].text());
         if (!Array.isArray(d.konten) || !Array.isArray(d.buchungen)) throw new Error('keine gültige Sicherung');
         if (!confirm(`Sicherung mit ${d.buchungen.length} Buchungen einlesen? Die aktuellen Daten dieser Buchhaltung werden ersetzt.`)) return;
-        S.data = { geloescht: {}, ...d }; speichere(); render(); toast('Sicherung eingelesen ✓');
+        S.data = migriere({ geloescht: {}, ...d }); protokoll('Sicherung eingelesen', { objekt: 'Buchhaltung', text: d.buchungen.length + ' Buchungen' }); speichere(); render(); toast('Sicherung eingelesen ✓');
       } catch (e) { toast('Fehler: ' + e.message); }
     };
     i.click();
@@ -706,13 +730,16 @@ function kontoSheet(k) {
         const jahre = { ...(k.jahre || {}) }; if (budget == null) delete jahre[y]; else jahre[y] = budget;
         const upd = { nr: root.querySelector('#kNr').value.trim(), name, typ, jahre, fixBetrag: fb, fix: root.querySelector('#kFix').value,
           tag: Math.max(1, Math.min(28, +root.querySelector('#kTag').value || 1)), aktiv: true, u: now() };
+        const altB = neu ? undefined : (k.jahre || {})[y];
         if (neu) S.data.konten.push({ id: uid(), ...upd }); else Object.assign(k, upd);
+        protokoll(neu ? 'neu' : 'geändert', { objekt: 'Konto', konto: upd.nr + ' ' + name, jahr: y, betrag_alt: altB ?? null, betrag_neu: budget });
         speichere(); close(); render(); toast('Konto gespeichert ✓');
       };
       const dl = root.querySelector('#dl');
       if (dl) dl.onclick = () => {
         const n = S.data.buchungen.filter(b => b.kontoId === k.id).length;
         if (!confirm(n ? `Das Konto hat ${n} Buchungen. Es wird ausgeblendet, die Buchungen bleiben erhalten.` : 'Konto löschen?')) return;
+        protokoll('gelöscht', { objekt: 'Konto', konto: k.nr + ' ' + k.name });
         if (n) { k.aktiv = false; k.u = now(); } else { S.data.konten = S.data.konten.filter(x => x.id !== k.id); S.data.geloescht[k.id] = now(); }
         speichere(); close(); render();
       };
@@ -743,7 +770,8 @@ function jahrBudgetSheet() {
           const k = konto(i.dataset.id), v = i.value.trim();
           if (v !== '' && parseBetrag(v) == null) { i.focus(); return toast('Ungültiger Betrag bei ' + k.name); }
           const alt = (k.jahre || {})[y], neu = v === '' ? undefined : parseBetrag(v);
-          if (alt !== neu) { k.jahre = { ...(k.jahre || {}) }; if (neu === undefined) delete k.jahre[y]; else k.jahre[y] = neu; k.u = now(); }
+          if (alt !== neu) { k.jahre = { ...(k.jahre || {}) }; if (neu === undefined) delete k.jahre[y]; else k.jahre[y] = neu; k.u = now();
+            protokoll('geändert', { objekt: 'Budget', konto: k.nr + ' ' + k.name, jahr: y, betrag_alt: alt ?? null, betrag_neu: neu ?? null }); }
         }
         speichere(); close(); render(); toast('Jahresbudget gespeichert ✓');
       };
@@ -854,6 +882,7 @@ async function sync(laut) {
       }
       S.data = neu; LS.set('budget.data.' + mId, neu);
       await ladeBelegeHoch(m, hdr);
+      await ladeProtokollHoch(m, hdr);
       m.dirty = false; m.lastSync = now(); delete m.uebernehmen; speichereMandanten();
       if (!document.querySelector('.sheet-bg')) render(); else aktualisiereKopf();
       laut && toast('Abgeglichen ✓');
@@ -1052,6 +1081,52 @@ function bindBeleg(root, b) {
   };
   root.querySelector('#fFoto').onchange = onFile;
   root.querySelector('#fDatei').onchange = onFile;
+}
+
+async function ladeProtokollHoch(m, hdr) {
+  const key = 'budget.log.' + m.id, q = LS.get(key, []);
+  if (!q.length) return;
+  const monat = new Date().toISOString().slice(0, 7);
+  const url = `https://api.github.com/repos/${m.repo}/contents/protokoll/${monat}.jsonl`;
+  for (let v = 0; v < 3; v++) {
+    const r = await fetch(url + '?t=' + now(), { headers: hdr, cache: 'no-store' });
+    let alt = '', sha;
+    if (r.ok) { const j = await r.json(); sha = j.sha; alt = b64dec(j.content); } else if (r.status !== 404) return;
+    const neu = alt + q.map(e => JSON.stringify(e)).join('\n') + '\n';
+    const body = { message: `Protokoll: ${q.length} Änderung(en)${S.ich ? ' von ' + S.ich : ''}`, content: b64enc(neu) };
+    if (sha) body.sha = sha;
+    const p = await fetch(url, { method: 'PUT', headers: { ...hdr, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    if (p.ok) { const rest = LS.get(key, []).slice(q.length); LS.set(key, rest); return; }
+    if (p.status !== 409 && p.status !== 422) return;
+  }
+}
+
+/* ---------- Einladungslink ---------- */
+// Link vom Admin-Center: …/#einladung=<base64url(JSON {n: Name, r: Repository, t: Token, p: Person})>
+function pruefeEinladung() {
+  const m = location.hash.match(/einladung=([\w-]+)/);
+  if (!m) return false;
+  history.replaceState(null, '', location.pathname + location.search);
+  let e;
+  try { e = JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(m[1].replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0)))); }
+  catch { toast('Einladungslink ist ungültig.'); return false; }
+  if (!e.r || !e.t) { toast('Einladungslink ist unvollständig.'); return false; }
+  if (!confirm(`Buchhaltung „${e.n || e.r}“ auf diesem Gerät einrichten${e.p ? ' für ' + e.p : ''}?`)) return false;
+  if (e.p) { S.ich = e.p; LS.set('budget.ich', S.ich); }
+  let md = S.mandanten.find(x => x.repo && x.repo.toLowerCase() === e.r.toLowerCase());
+  if (!md) {
+    // leere Start-Buchhaltung ohne Buchungen ersetzen, sonst neue anlegen
+    const leer = S.mandanten.length === 1 && !S.mandanten[0].repo && !(LS.get('budget.data.' + S.mandanten[0].id, { buchungen: [] }).buchungen || []).length;
+    if (leer) { md = S.mandanten[0]; md.name = e.n || md.name; }
+    else { md = { id: uid(), name: e.n || e.r.split('/')[1], repo: '', dirty: false }; S.mandanten.push(md); }
+    LS.set('budget.data.' + md.id, neueDaten(null));
+    md.uebernehmen = true;
+  }
+  md.repo = e.r; md.dirty = false; LS.set('budget.token.' + md.id, e.t);
+  LS.set('budget.ghuser', e.r.split('/')[0]);
+  S.aktiv = md.id; speichereMandanten(); ladeDaten();
+  toast('Buchhaltung eingerichtet, Daten werden geladen…');
+  return true;
 }
 
 /* ---------- Hilfen ---------- */

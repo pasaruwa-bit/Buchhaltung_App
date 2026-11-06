@@ -1,0 +1,2856 @@
+<!doctype html>
+<html lang="de-CH">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1f6f5c">
+<meta name="robots" content="noindex">
+<title>Budget Admin-Center</title>
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<style>
+:root {
+  --bg: #f4f6f5; --card: #fff; --text: #1d2422; --muted: #66706d; --line: #e1e6e4;
+  --brand: #1f6f5c; --brand-soft: #e3f1ec; --ok: #2e8b57; --warn: #c98a00; --bad: #c0392b;
+  --radius: 14px;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #121614; --card: #1c2220; --text: #e8eeec; --muted: #9aa5a1; --line: #2c3431;
+    --brand: #4fb79a; --brand-soft: #1d332c; }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--text);
+  font: 16px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+button, input, select, textarea { font: inherit; color: inherit; }
+body { padding-bottom: calc(76px + env(safe-area-inset-bottom)); }
+main { max-width: 760px; margin: 0 auto; padding: 12px 16px 24px; }
+
+.top { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 8px;
+  padding: calc(8px + env(safe-area-inset-top)) 12px 8px; background: var(--brand); color: #fff; }
+.top button { background: none; border: 0; color: #fff; cursor: pointer; }
+.mandant { font-weight: 600; max-width: 40%; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  padding: 6px 8px; border-radius: 8px; background: rgba(255,255,255,.15) !important; }
+.monat { flex: 1; white-space: nowrap; font-size: 15px; display: flex; align-items: center; justify-content: center; gap: 6px; font-weight: 600; }
+.monat button { font-size: 26px; padding: 0 10px; line-height: 1; }
+.sync { font-size: 20px; padding: 6px 10px; }
+.sync.dirty::after { content: "•"; color: #ffd166; margin-left: 2px; }
+
+.tabs { position: fixed; left: 0; right: 0; bottom: 0; display: flex; background: var(--card);
+  border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom); z-index: 5; }
+.tabs button { flex: 1; background: none; border: 0; padding: 8px 0 10px; font-size: 11px; color: var(--muted);
+  display: flex; flex-direction: column; align-items: center; gap: 2px; cursor: pointer; }
+.tabs button span { font-size: 20px; line-height: 1.1; }
+.tabs button.on { color: var(--brand); font-weight: 600; }
+.tabs .plus span { background: var(--brand); color: #fff; width: 38px; height: 38px; border-radius: 50%;
+  display: grid; place-items: center; font-size: 26px; margin-top: -14px; box-shadow: 0 2px 6px rgba(0,0,0,.2); }
+
+.card { background: var(--card); border-radius: var(--radius); padding: 14px 16px; margin: 0 0 12px;
+  box-shadow: 0 1px 2px rgba(0,0,0,.05); border: 1px solid var(--line); }
+h2 { font-size: 18px; margin: 4px 0 10px; }
+h3 { font-size: 15px; margin: 0 0 8px; color: var(--muted); font-weight: 600; }
+.muted { color: var(--muted); font-size: 14px; }
+.row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.big { font-size: 26px; font-weight: 700; }
+.num { font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+.pos { color: var(--ok); } .neg { color: var(--bad); }
+
+.bar { height: 12px; background: var(--line); border-radius: 6px; overflow: hidden; margin: 8px 0 4px; }
+.bar > i { display: block; height: 100%; background: var(--ok); border-radius: 6px; }
+.bar.warn > i { background: var(--warn); } .bar.bad > i { background: var(--bad); }
+
+.list { list-style: none; margin: 0; padding: 0; }
+.list li { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-top: 1px solid var(--line); }
+.list li:first-child { border-top: 0; }
+.list .grow { flex: 1; min-width: 0; }
+.list .t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.list li.click { cursor: pointer; }
+
+.btn { border: 0; border-radius: 10px; padding: 10px 14px; background: var(--brand); color: #fff;
+  font-weight: 600; cursor: pointer; }
+.btn.sec { background: var(--brand-soft); color: var(--brand); }
+.btn.danger { background: transparent; color: var(--bad); border: 1px solid var(--bad); }
+.btn.sm { padding: 6px 10px; font-size: 14px; }
+.btn.full { width: 100%; padding: 14px; font-size: 17px; }
+.btns { display: flex; gap: 8px; flex-wrap: wrap; }
+
+label { display: block; font-size: 14px; color: var(--muted); margin: 10px 0 4px; }
+input, select, textarea { width: 100%; padding: 11px 12px; border: 1px solid var(--line); border-radius: 10px;
+  background: var(--bg); }
+input:focus, select:focus { outline: 2px solid var(--brand); outline-offset: 0; }
+.seg { display: flex; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 3px; }
+.seg button { flex: 1; border: 0; background: none; padding: 8px; border-radius: 8px; cursor: pointer; }
+.seg button.on { background: var(--card); box-shadow: 0 1px 3px rgba(0,0,0,.12); font-weight: 600; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th, td { padding: 7px 4px; border-top: 1px solid var(--line); }
+th { text-align: left; color: var(--muted); font-weight: 600; border-top: 0; }
+td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+tr.sum td { font-weight: 700; border-top: 2px solid var(--text); }
+tr.click { cursor: pointer; }
+.tablewrap { overflow-x: auto; }
+.dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; background: var(--ok); }
+.dot.warn { background: var(--warn); } .dot.bad { background: var(--bad); }
+
+.chart { display: flex; align-items: flex-end; gap: 4px; height: 140px; padding-top: 8px; }
+.chart .col { flex: 1; display: flex; flex-direction: column; align-items: center; height: 100%; justify-content: flex-end; }
+.chart .bars { display: flex; gap: 2px; align-items: flex-end; height: 100%; width: 100%; justify-content: center; }
+.chart .b { width: 40%; border-radius: 3px 3px 0 0; min-height: 1px; }
+.chart .b.soll { background: var(--line); } .chart .b.ist { background: var(--brand); }
+.chart .b.ist.over { background: var(--bad); }
+.chart small { font-size: 10px; color: var(--muted); margin-top: 3px; }
+
+#toast { position: fixed; left: 50%; bottom: 90px; transform: translateX(-50%); background: #222; color: #fff;
+  padding: 10px 16px; border-radius: 10px; opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 20;
+  max-width: 90vw; text-align: center; }
+#toast.show { opacity: .95; }
+
+.sheet-bg { position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 10; display: flex; align-items: flex-end; justify-content: center; }
+.sheet { background: var(--card); width: 100%; max-width: 560px; max-height: 88vh; overflow: auto;
+  border-radius: 18px 18px 0 0; padding: 16px 16px calc(16px + env(safe-area-inset-bottom)); }
+@media (min-width: 700px) { .sheet-bg { align-items: center; } .sheet { border-radius: 18px; } }
+.empty { text-align: center; color: var(--muted); padding: 20px 0; }
+.pill { font-size: 12px; padding: 2px 8px; border-radius: 99px; background: var(--brand-soft); color: var(--brand); }
+
+.belegbox { margin: 4px 0 6px; }
+.belegbox label.btn { display: inline-block; color: var(--brand); margin: 0; font-size: 15px; }
+.belegthumb { display: block; max-width: 100%; max-height: 220px; margin: 10px 0 4px; border-radius: 10px; border: 1px solid var(--line); cursor: zoom-in; }
+#belegStatus { margin-top: 4px; }
+a.btn { text-decoration: none; display: inline-block; }
+
+.admin-wide main { max-width: 1100px; }
+.kacheln { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+.kacheln .card { margin: 0; }
+.personen { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.pill.aus { background: #fde8e6; color: var(--bad); }
+.pill.warnp { background: #fff3d6; color: var(--warn); }
+.qr svg { width: 100%; max-width: 260px; height: auto; display: block; margin: 8px auto; background: #fff; padding: 8px; border-radius: 10px; }
+.link { word-break: break-all; font-size: 12px; background: var(--bg); padding: 8px; border-radius: 8px; border: 1px solid var(--line); }
+.schritte li { margin: 6px 0; }
+.filter { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
+td.klein, th.klein { font-size: 12px; color: var(--muted); }
+</style>
+</head>
+<body class="admin-wide">
+<header class="top">
+  <strong style="flex:1">Admin-Center</strong>
+  <span id="wer" class="muted" style="color:#fff;opacity:.85;font-size:14px"></span>
+  <button id="reload" class="sync" title="Neu laden">⟳</button>
+</header>
+<main id="view"></main>
+<nav class="tabs">
+  <button data-tab="uebersicht" class="on"><span>▦</span>Übersicht</button>
+  <button data-tab="neu"><span>+</span>Neue Buchhaltung</button>
+  <button data-tab="protokoll"><span>☰</span>Protokoll</button>
+  <button data-tab="einstellungen"><span>⚙</span>Admin-Schlüssel</button>
+</nav>
+<div id="toast" role="status"></div>
+<script>
+//---------------------------------------------------------------------
+//
+// QR Code Generator for JavaScript
+//
+// Copyright (c) 2009 Kazuhiko Arase
+//
+// URL: http://www.d-project.com/
+//
+// Licensed under the MIT license:
+//  http://www.opensource.org/licenses/mit-license.php
+//
+// The word 'QR Code' is registered trademark of
+// DENSO WAVE INCORPORATED
+//  http://www.denso-wave.com/qrcode/faqpatent-e.html
+//
+//---------------------------------------------------------------------
+
+var qrcode = function() {
+
+  //---------------------------------------------------------------------
+  // qrcode
+  //---------------------------------------------------------------------
+
+  /**
+   * qrcode
+   * @param typeNumber 1 to 40
+   * @param errorCorrectionLevel 'L','M','Q','H'
+   */
+  var qrcode = function(typeNumber, errorCorrectionLevel) {
+
+    var PAD0 = 0xEC;
+    var PAD1 = 0x11;
+
+    var _typeNumber = typeNumber;
+    var _errorCorrectionLevel = QRErrorCorrectionLevel[errorCorrectionLevel];
+    var _modules = null;
+    var _moduleCount = 0;
+    var _dataCache = null;
+    var _dataList = [];
+
+    var _this = {};
+
+    var makeImpl = function(test, maskPattern) {
+
+      _moduleCount = _typeNumber * 4 + 17;
+      _modules = function(moduleCount) {
+        var modules = new Array(moduleCount);
+        for (var row = 0; row < moduleCount; row += 1) {
+          modules[row] = new Array(moduleCount);
+          for (var col = 0; col < moduleCount; col += 1) {
+            modules[row][col] = null;
+          }
+        }
+        return modules;
+      }(_moduleCount);
+
+      setupPositionProbePattern(0, 0);
+      setupPositionProbePattern(_moduleCount - 7, 0);
+      setupPositionProbePattern(0, _moduleCount - 7);
+      setupPositionAdjustPattern();
+      setupTimingPattern();
+      setupTypeInfo(test, maskPattern);
+
+      if (_typeNumber >= 7) {
+        setupTypeNumber(test);
+      }
+
+      if (_dataCache == null) {
+        _dataCache = createData(_typeNumber, _errorCorrectionLevel, _dataList);
+      }
+
+      mapData(_dataCache, maskPattern);
+    };
+
+    var setupPositionProbePattern = function(row, col) {
+
+      for (var r = -1; r <= 7; r += 1) {
+
+        if (row + r <= -1 || _moduleCount <= row + r) continue;
+
+        for (var c = -1; c <= 7; c += 1) {
+
+          if (col + c <= -1 || _moduleCount <= col + c) continue;
+
+          if ( (0 <= r && r <= 6 && (c == 0 || c == 6) )
+              || (0 <= c && c <= 6 && (r == 0 || r == 6) )
+              || (2 <= r && r <= 4 && 2 <= c && c <= 4) ) {
+            _modules[row + r][col + c] = true;
+          } else {
+            _modules[row + r][col + c] = false;
+          }
+        }
+      }
+    };
+
+    var getBestMaskPattern = function() {
+
+      var minLostPoint = 0;
+      var pattern = 0;
+
+      for (var i = 0; i < 8; i += 1) {
+
+        makeImpl(true, i);
+
+        var lostPoint = QRUtil.getLostPoint(_this);
+
+        if (i == 0 || minLostPoint > lostPoint) {
+          minLostPoint = lostPoint;
+          pattern = i;
+        }
+      }
+
+      return pattern;
+    };
+
+    var setupTimingPattern = function() {
+
+      for (var r = 8; r < _moduleCount - 8; r += 1) {
+        if (_modules[r][6] != null) {
+          continue;
+        }
+        _modules[r][6] = (r % 2 == 0);
+      }
+
+      for (var c = 8; c < _moduleCount - 8; c += 1) {
+        if (_modules[6][c] != null) {
+          continue;
+        }
+        _modules[6][c] = (c % 2 == 0);
+      }
+    };
+
+    var setupPositionAdjustPattern = function() {
+
+      var pos = QRUtil.getPatternPosition(_typeNumber);
+
+      for (var i = 0; i < pos.length; i += 1) {
+
+        for (var j = 0; j < pos.length; j += 1) {
+
+          var row = pos[i];
+          var col = pos[j];
+
+          if (_modules[row][col] != null) {
+            continue;
+          }
+
+          for (var r = -2; r <= 2; r += 1) {
+
+            for (var c = -2; c <= 2; c += 1) {
+
+              if (r == -2 || r == 2 || c == -2 || c == 2
+                  || (r == 0 && c == 0) ) {
+                _modules[row + r][col + c] = true;
+              } else {
+                _modules[row + r][col + c] = false;
+              }
+            }
+          }
+        }
+      }
+    };
+
+    var setupTypeNumber = function(test) {
+
+      var bits = QRUtil.getBCHTypeNumber(_typeNumber);
+
+      for (var i = 0; i < 18; i += 1) {
+        var mod = (!test && ( (bits >> i) & 1) == 1);
+        _modules[Math.floor(i / 3)][i % 3 + _moduleCount - 8 - 3] = mod;
+      }
+
+      for (var i = 0; i < 18; i += 1) {
+        var mod = (!test && ( (bits >> i) & 1) == 1);
+        _modules[i % 3 + _moduleCount - 8 - 3][Math.floor(i / 3)] = mod;
+      }
+    };
+
+    var setupTypeInfo = function(test, maskPattern) {
+
+      var data = (_errorCorrectionLevel << 3) | maskPattern;
+      var bits = QRUtil.getBCHTypeInfo(data);
+
+      // vertical
+      for (var i = 0; i < 15; i += 1) {
+
+        var mod = (!test && ( (bits >> i) & 1) == 1);
+
+        if (i < 6) {
+          _modules[i][8] = mod;
+        } else if (i < 8) {
+          _modules[i + 1][8] = mod;
+        } else {
+          _modules[_moduleCount - 15 + i][8] = mod;
+        }
+      }
+
+      // horizontal
+      for (var i = 0; i < 15; i += 1) {
+
+        var mod = (!test && ( (bits >> i) & 1) == 1);
+
+        if (i < 8) {
+          _modules[8][_moduleCount - i - 1] = mod;
+        } else if (i < 9) {
+          _modules[8][15 - i - 1 + 1] = mod;
+        } else {
+          _modules[8][15 - i - 1] = mod;
+        }
+      }
+
+      // fixed module
+      _modules[_moduleCount - 8][8] = (!test);
+    };
+
+    var mapData = function(data, maskPattern) {
+
+      var inc = -1;
+      var row = _moduleCount - 1;
+      var bitIndex = 7;
+      var byteIndex = 0;
+      var maskFunc = QRUtil.getMaskFunction(maskPattern);
+
+      for (var col = _moduleCount - 1; col > 0; col -= 2) {
+
+        if (col == 6) col -= 1;
+
+        while (true) {
+
+          for (var c = 0; c < 2; c += 1) {
+
+            if (_modules[row][col - c] == null) {
+
+              var dark = false;
+
+              if (byteIndex < data.length) {
+                dark = ( ( (data[byteIndex] >>> bitIndex) & 1) == 1);
+              }
+
+              var mask = maskFunc(row, col - c);
+
+              if (mask) {
+                dark = !dark;
+              }
+
+              _modules[row][col - c] = dark;
+              bitIndex -= 1;
+
+              if (bitIndex == -1) {
+                byteIndex += 1;
+                bitIndex = 7;
+              }
+            }
+          }
+
+          row += inc;
+
+          if (row < 0 || _moduleCount <= row) {
+            row -= inc;
+            inc = -inc;
+            break;
+          }
+        }
+      }
+    };
+
+    var createBytes = function(buffer, rsBlocks) {
+
+      var offset = 0;
+
+      var maxDcCount = 0;
+      var maxEcCount = 0;
+
+      var dcdata = new Array(rsBlocks.length);
+      var ecdata = new Array(rsBlocks.length);
+
+      for (var r = 0; r < rsBlocks.length; r += 1) {
+
+        var dcCount = rsBlocks[r].dataCount;
+        var ecCount = rsBlocks[r].totalCount - dcCount;
+
+        maxDcCount = Math.max(maxDcCount, dcCount);
+        maxEcCount = Math.max(maxEcCount, ecCount);
+
+        dcdata[r] = new Array(dcCount);
+
+        for (var i = 0; i < dcdata[r].length; i += 1) {
+          dcdata[r][i] = 0xff & buffer.getBuffer()[i + offset];
+        }
+        offset += dcCount;
+
+        var rsPoly = QRUtil.getErrorCorrectPolynomial(ecCount);
+        var rawPoly = qrPolynomial(dcdata[r], rsPoly.getLength() - 1);
+
+        var modPoly = rawPoly.mod(rsPoly);
+        ecdata[r] = new Array(rsPoly.getLength() - 1);
+        for (var i = 0; i < ecdata[r].length; i += 1) {
+          var modIndex = i + modPoly.getLength() - ecdata[r].length;
+          ecdata[r][i] = (modIndex >= 0)? modPoly.getAt(modIndex) : 0;
+        }
+      }
+
+      var totalCodeCount = 0;
+      for (var i = 0; i < rsBlocks.length; i += 1) {
+        totalCodeCount += rsBlocks[i].totalCount;
+      }
+
+      var data = new Array(totalCodeCount);
+      var index = 0;
+
+      for (var i = 0; i < maxDcCount; i += 1) {
+        for (var r = 0; r < rsBlocks.length; r += 1) {
+          if (i < dcdata[r].length) {
+            data[index] = dcdata[r][i];
+            index += 1;
+          }
+        }
+      }
+
+      for (var i = 0; i < maxEcCount; i += 1) {
+        for (var r = 0; r < rsBlocks.length; r += 1) {
+          if (i < ecdata[r].length) {
+            data[index] = ecdata[r][i];
+            index += 1;
+          }
+        }
+      }
+
+      return data;
+    };
+
+    var createData = function(typeNumber, errorCorrectionLevel, dataList) {
+
+      var rsBlocks = QRRSBlock.getRSBlocks(typeNumber, errorCorrectionLevel);
+
+      var buffer = qrBitBuffer();
+
+      for (var i = 0; i < dataList.length; i += 1) {
+        var data = dataList[i];
+        buffer.put(data.getMode(), 4);
+        buffer.put(data.getLength(), QRUtil.getLengthInBits(data.getMode(), typeNumber) );
+        data.write(buffer);
+      }
+
+      // calc num max data.
+      var totalDataCount = 0;
+      for (var i = 0; i < rsBlocks.length; i += 1) {
+        totalDataCount += rsBlocks[i].dataCount;
+      }
+
+      if (buffer.getLengthInBits() > totalDataCount * 8) {
+        throw 'code length overflow. ('
+          + buffer.getLengthInBits()
+          + '>'
+          + totalDataCount * 8
+          + ')';
+      }
+
+      // end code
+      if (buffer.getLengthInBits() + 4 <= totalDataCount * 8) {
+        buffer.put(0, 4);
+      }
+
+      // padding
+      while (buffer.getLengthInBits() % 8 != 0) {
+        buffer.putBit(false);
+      }
+
+      // padding
+      while (true) {
+
+        if (buffer.getLengthInBits() >= totalDataCount * 8) {
+          break;
+        }
+        buffer.put(PAD0, 8);
+
+        if (buffer.getLengthInBits() >= totalDataCount * 8) {
+          break;
+        }
+        buffer.put(PAD1, 8);
+      }
+
+      return createBytes(buffer, rsBlocks);
+    };
+
+    _this.addData = function(data, mode) {
+
+      mode = mode || 'Byte';
+
+      var newData = null;
+
+      switch(mode) {
+      case 'Numeric' :
+        newData = qrNumber(data);
+        break;
+      case 'Alphanumeric' :
+        newData = qrAlphaNum(data);
+        break;
+      case 'Byte' :
+        newData = qr8BitByte(data);
+        break;
+      case 'Kanji' :
+        newData = qrKanji(data);
+        break;
+      default :
+        throw 'mode:' + mode;
+      }
+
+      _dataList.push(newData);
+      _dataCache = null;
+    };
+
+    _this.isDark = function(row, col) {
+      if (row < 0 || _moduleCount <= row || col < 0 || _moduleCount <= col) {
+        throw row + ',' + col;
+      }
+      return _modules[row][col];
+    };
+
+    _this.getModuleCount = function() {
+      return _moduleCount;
+    };
+
+    _this.make = function() {
+      if (_typeNumber < 1) {
+        var typeNumber = 1;
+
+        for (; typeNumber < 40; typeNumber++) {
+          var rsBlocks = QRRSBlock.getRSBlocks(typeNumber, _errorCorrectionLevel);
+          var buffer = qrBitBuffer();
+
+          for (var i = 0; i < _dataList.length; i++) {
+            var data = _dataList[i];
+            buffer.put(data.getMode(), 4);
+            buffer.put(data.getLength(), QRUtil.getLengthInBits(data.getMode(), typeNumber) );
+            data.write(buffer);
+          }
+
+          var totalDataCount = 0;
+          for (var i = 0; i < rsBlocks.length; i++) {
+            totalDataCount += rsBlocks[i].dataCount;
+          }
+
+          if (buffer.getLengthInBits() <= totalDataCount * 8) {
+            break;
+          }
+        }
+
+        _typeNumber = typeNumber;
+      }
+
+      makeImpl(false, getBestMaskPattern() );
+    };
+
+    _this.createTableTag = function(cellSize, margin) {
+
+      cellSize = cellSize || 2;
+      margin = (typeof margin == 'undefined')? cellSize * 4 : margin;
+
+      var qrHtml = '';
+
+      qrHtml += '<table style="';
+      qrHtml += ' border-width: 0px; border-style: none;';
+      qrHtml += ' border-collapse: collapse;';
+      qrHtml += ' padding: 0px; margin: ' + margin + 'px;';
+      qrHtml += '">';
+      qrHtml += '<tbody>';
+
+      for (var r = 0; r < _this.getModuleCount(); r += 1) {
+
+        qrHtml += '<tr>';
+
+        for (var c = 0; c < _this.getModuleCount(); c += 1) {
+          qrHtml += '<td style="';
+          qrHtml += ' border-width: 0px; border-style: none;';
+          qrHtml += ' border-collapse: collapse;';
+          qrHtml += ' padding: 0px; margin: 0px;';
+          qrHtml += ' width: ' + cellSize + 'px;';
+          qrHtml += ' height: ' + cellSize + 'px;';
+          qrHtml += ' background-color: ';
+          qrHtml += _this.isDark(r, c)? '#000000' : '#ffffff';
+          qrHtml += ';';
+          qrHtml += '"/>';
+        }
+
+        qrHtml += '</tr>';
+      }
+
+      qrHtml += '</tbody>';
+      qrHtml += '</table>';
+
+      return qrHtml;
+    };
+
+    _this.createSvgTag = function(cellSize, margin, alt, title) {
+
+      var opts = {};
+      if (typeof arguments[0] == 'object') {
+        // Called by options.
+        opts = arguments[0];
+        // overwrite cellSize and margin.
+        cellSize = opts.cellSize;
+        margin = opts.margin;
+        alt = opts.alt;
+        title = opts.title;
+      }
+
+      cellSize = cellSize || 2;
+      margin = (typeof margin == 'undefined')? cellSize * 4 : margin;
+
+      // Compose alt property surrogate
+      alt = (typeof alt === 'string') ? {text: alt} : alt || {};
+      alt.text = alt.text || null;
+      alt.id = (alt.text) ? alt.id || 'qrcode-description' : null;
+
+      // Compose title property surrogate
+      title = (typeof title === 'string') ? {text: title} : title || {};
+      title.text = title.text || null;
+      title.id = (title.text) ? title.id || 'qrcode-title' : null;
+
+      var size = _this.getModuleCount() * cellSize + margin * 2;
+      var c, mc, r, mr, qrSvg='', rect;
+
+      rect = 'l' + cellSize + ',0 0,' + cellSize +
+        ' -' + cellSize + ',0 0,-' + cellSize + 'z ';
+
+      qrSvg += '<svg version="1.1" xmlns="http://www.w3.org/2000/svg"';
+      qrSvg += !opts.scalable ? ' width="' + size + 'px" height="' + size + 'px"' : '';
+      qrSvg += ' viewBox="0 0 ' + size + ' ' + size + '" ';
+      qrSvg += ' preserveAspectRatio="xMinYMin meet"';
+      qrSvg += (title.text || alt.text) ? ' role="img" aria-labelledby="' +
+          escapeXml([title.id, alt.id].join(' ').trim() ) + '"' : '';
+      qrSvg += '>';
+      qrSvg += (title.text) ? '<title id="' + escapeXml(title.id) + '">' +
+          escapeXml(title.text) + '</title>' : '';
+      qrSvg += (alt.text) ? '<description id="' + escapeXml(alt.id) + '">' +
+          escapeXml(alt.text) + '</description>' : '';
+      qrSvg += '<rect width="100%" height="100%" fill="white" cx="0" cy="0"/>';
+      qrSvg += '<path d="';
+
+      for (r = 0; r < _this.getModuleCount(); r += 1) {
+        mr = r * cellSize + margin;
+        for (c = 0; c < _this.getModuleCount(); c += 1) {
+          if (_this.isDark(r, c) ) {
+            mc = c*cellSize+margin;
+            qrSvg += 'M' + mc + ',' + mr + rect;
+          }
+        }
+      }
+
+      qrSvg += '" stroke="transparent" fill="black"/>';
+      qrSvg += '</svg>';
+
+      return qrSvg;
+    };
+
+    _this.createDataURL = function(cellSize, margin) {
+
+      cellSize = cellSize || 2;
+      margin = (typeof margin == 'undefined')? cellSize * 4 : margin;
+
+      var size = _this.getModuleCount() * cellSize + margin * 2;
+      var min = margin;
+      var max = size - margin;
+
+      return createDataURL(size, size, function(x, y) {
+        if (min <= x && x < max && min <= y && y < max) {
+          var c = Math.floor( (x - min) / cellSize);
+          var r = Math.floor( (y - min) / cellSize);
+          return _this.isDark(r, c)? 0 : 1;
+        } else {
+          return 1;
+        }
+      } );
+    };
+
+    _this.createImgTag = function(cellSize, margin, alt) {
+
+      cellSize = cellSize || 2;
+      margin = (typeof margin == 'undefined')? cellSize * 4 : margin;
+
+      var size = _this.getModuleCount() * cellSize + margin * 2;
+
+      var img = '';
+      img += '<img';
+      img += '\u0020src="';
+      img += _this.createDataURL(cellSize, margin);
+      img += '"';
+      img += '\u0020width="';
+      img += size;
+      img += '"';
+      img += '\u0020height="';
+      img += size;
+      img += '"';
+      if (alt) {
+        img += '\u0020alt="';
+        img += escapeXml(alt);
+        img += '"';
+      }
+      img += '/>';
+
+      return img;
+    };
+
+    var escapeXml = function(s) {
+      var escaped = '';
+      for (var i = 0; i < s.length; i += 1) {
+        var c = s.charAt(i);
+        switch(c) {
+        case '<': escaped += '&lt;'; break;
+        case '>': escaped += '&gt;'; break;
+        case '&': escaped += '&amp;'; break;
+        case '"': escaped += '&quot;'; break;
+        default : escaped += c; break;
+        }
+      }
+      return escaped;
+    };
+
+    var _createHalfASCII = function(margin) {
+      var cellSize = 1;
+      margin = (typeof margin == 'undefined')? cellSize * 2 : margin;
+
+      var size = _this.getModuleCount() * cellSize + margin * 2;
+      var min = margin;
+      var max = size - margin;
+
+      var y, x, r1, r2, p;
+
+      var blocks = {
+        '██': '█',
+        '█ ': '▀',
+        ' █': '▄',
+        '  ': ' '
+      };
+
+      var blocksLastLineNoMargin = {
+        '██': '▀',
+        '█ ': '▀',
+        ' █': ' ',
+        '  ': ' '
+      };
+
+      var ascii = '';
+      for (y = 0; y < size; y += 2) {
+        r1 = Math.floor((y - min) / cellSize);
+        r2 = Math.floor((y + 1 - min) / cellSize);
+        for (x = 0; x < size; x += 1) {
+          p = '█';
+
+          if (min <= x && x < max && min <= y && y < max && _this.isDark(r1, Math.floor((x - min) / cellSize))) {
+            p = ' ';
+          }
+
+          if (min <= x && x < max && min <= y+1 && y+1 < max && _this.isDark(r2, Math.floor((x - min) / cellSize))) {
+            p += ' ';
+          }
+          else {
+            p += '█';
+          }
+
+          // Output 2 characters per pixel, to create full square. 1 character per pixels gives only half width of square.
+          ascii += (margin < 1 && y+1 >= max) ? blocksLastLineNoMargin[p] : blocks[p];
+        }
+
+        ascii += '\n';
+      }
+
+      if (size % 2 && margin > 0) {
+        return ascii.substring(0, ascii.length - size - 1) + Array(size+1).join('▀');
+      }
+
+      return ascii.substring(0, ascii.length-1);
+    };
+
+    _this.createASCII = function(cellSize, margin) {
+      cellSize = cellSize || 1;
+
+      if (cellSize < 2) {
+        return _createHalfASCII(margin);
+      }
+
+      cellSize -= 1;
+      margin = (typeof margin == 'undefined')? cellSize * 2 : margin;
+
+      var size = _this.getModuleCount() * cellSize + margin * 2;
+      var min = margin;
+      var max = size - margin;
+
+      var y, x, r, p;
+
+      var white = Array(cellSize+1).join('██');
+      var black = Array(cellSize+1).join('  ');
+
+      var ascii = '';
+      var line = '';
+      for (y = 0; y < size; y += 1) {
+        r = Math.floor( (y - min) / cellSize);
+        line = '';
+        for (x = 0; x < size; x += 1) {
+          p = 1;
+
+          if (min <= x && x < max && min <= y && y < max && _this.isDark(r, Math.floor((x - min) / cellSize))) {
+            p = 0;
+          }
+
+          // Output 2 characters per pixel, to create full square. 1 character per pixels gives only half width of square.
+          line += p ? white : black;
+        }
+
+        for (r = 0; r < cellSize; r += 1) {
+          ascii += line + '\n';
+        }
+      }
+
+      return ascii.substring(0, ascii.length-1);
+    };
+
+    _this.renderTo2dContext = function(context, cellSize) {
+      cellSize = cellSize || 2;
+      var length = _this.getModuleCount();
+      for (var row = 0; row < length; row++) {
+        for (var col = 0; col < length; col++) {
+          context.fillStyle = _this.isDark(row, col) ? 'black' : 'white';
+          context.fillRect(row * cellSize, col * cellSize, cellSize, cellSize);
+        }
+      }
+    }
+
+    return _this;
+  };
+
+  //---------------------------------------------------------------------
+  // qrcode.stringToBytes
+  //---------------------------------------------------------------------
+
+  qrcode.stringToBytesFuncs = {
+    'default' : function(s) {
+      var bytes = [];
+      for (var i = 0; i < s.length; i += 1) {
+        var c = s.charCodeAt(i);
+        bytes.push(c & 0xff);
+      }
+      return bytes;
+    }
+  };
+
+  qrcode.stringToBytes = qrcode.stringToBytesFuncs['default'];
+
+  //---------------------------------------------------------------------
+  // qrcode.createStringToBytes
+  //---------------------------------------------------------------------
+
+  /**
+   * @param unicodeData base64 string of byte array.
+   * [16bit Unicode],[16bit Bytes], ...
+   * @param numChars
+   */
+  qrcode.createStringToBytes = function(unicodeData, numChars) {
+
+    // create conversion map.
+
+    var unicodeMap = function() {
+
+      var bin = base64DecodeInputStream(unicodeData);
+      var read = function() {
+        var b = bin.read();
+        if (b == -1) throw 'eof';
+        return b;
+      };
+
+      var count = 0;
+      var unicodeMap = {};
+      while (true) {
+        var b0 = bin.read();
+        if (b0 == -1) break;
+        var b1 = read();
+        var b2 = read();
+        var b3 = read();
+        var k = String.fromCharCode( (b0 << 8) | b1);
+        var v = (b2 << 8) | b3;
+        unicodeMap[k] = v;
+        count += 1;
+      }
+      if (count != numChars) {
+        throw count + ' != ' + numChars;
+      }
+
+      return unicodeMap;
+    }();
+
+    var unknownChar = '?'.charCodeAt(0);
+
+    return function(s) {
+      var bytes = [];
+      for (var i = 0; i < s.length; i += 1) {
+        var c = s.charCodeAt(i);
+        if (c < 128) {
+          bytes.push(c);
+        } else {
+          var b = unicodeMap[s.charAt(i)];
+          if (typeof b == 'number') {
+            if ( (b & 0xff) == b) {
+              // 1byte
+              bytes.push(b);
+            } else {
+              // 2bytes
+              bytes.push(b >>> 8);
+              bytes.push(b & 0xff);
+            }
+          } else {
+            bytes.push(unknownChar);
+          }
+        }
+      }
+      return bytes;
+    };
+  };
+
+  //---------------------------------------------------------------------
+  // QRMode
+  //---------------------------------------------------------------------
+
+  var QRMode = {
+    MODE_NUMBER :    1 << 0,
+    MODE_ALPHA_NUM : 1 << 1,
+    MODE_8BIT_BYTE : 1 << 2,
+    MODE_KANJI :     1 << 3
+  };
+
+  //---------------------------------------------------------------------
+  // QRErrorCorrectionLevel
+  //---------------------------------------------------------------------
+
+  var QRErrorCorrectionLevel = {
+    L : 1,
+    M : 0,
+    Q : 3,
+    H : 2
+  };
+
+  //---------------------------------------------------------------------
+  // QRMaskPattern
+  //---------------------------------------------------------------------
+
+  var QRMaskPattern = {
+    PATTERN000 : 0,
+    PATTERN001 : 1,
+    PATTERN010 : 2,
+    PATTERN011 : 3,
+    PATTERN100 : 4,
+    PATTERN101 : 5,
+    PATTERN110 : 6,
+    PATTERN111 : 7
+  };
+
+  //---------------------------------------------------------------------
+  // QRUtil
+  //---------------------------------------------------------------------
+
+  var QRUtil = function() {
+
+    var PATTERN_POSITION_TABLE = [
+      [],
+      [6, 18],
+      [6, 22],
+      [6, 26],
+      [6, 30],
+      [6, 34],
+      [6, 22, 38],
+      [6, 24, 42],
+      [6, 26, 46],
+      [6, 28, 50],
+      [6, 30, 54],
+      [6, 32, 58],
+      [6, 34, 62],
+      [6, 26, 46, 66],
+      [6, 26, 48, 70],
+      [6, 26, 50, 74],
+      [6, 30, 54, 78],
+      [6, 30, 56, 82],
+      [6, 30, 58, 86],
+      [6, 34, 62, 90],
+      [6, 28, 50, 72, 94],
+      [6, 26, 50, 74, 98],
+      [6, 30, 54, 78, 102],
+      [6, 28, 54, 80, 106],
+      [6, 32, 58, 84, 110],
+      [6, 30, 58, 86, 114],
+      [6, 34, 62, 90, 118],
+      [6, 26, 50, 74, 98, 122],
+      [6, 30, 54, 78, 102, 126],
+      [6, 26, 52, 78, 104, 130],
+      [6, 30, 56, 82, 108, 134],
+      [6, 34, 60, 86, 112, 138],
+      [6, 30, 58, 86, 114, 142],
+      [6, 34, 62, 90, 118, 146],
+      [6, 30, 54, 78, 102, 126, 150],
+      [6, 24, 50, 76, 102, 128, 154],
+      [6, 28, 54, 80, 106, 132, 158],
+      [6, 32, 58, 84, 110, 136, 162],
+      [6, 26, 54, 82, 110, 138, 166],
+      [6, 30, 58, 86, 114, 142, 170]
+    ];
+    var G15 = (1 << 10) | (1 << 8) | (1 << 5) | (1 << 4) | (1 << 2) | (1 << 1) | (1 << 0);
+    var G18 = (1 << 12) | (1 << 11) | (1 << 10) | (1 << 9) | (1 << 8) | (1 << 5) | (1 << 2) | (1 << 0);
+    var G15_MASK = (1 << 14) | (1 << 12) | (1 << 10) | (1 << 4) | (1 << 1);
+
+    var _this = {};
+
+    var getBCHDigit = function(data) {
+      var digit = 0;
+      while (data != 0) {
+        digit += 1;
+        data >>>= 1;
+      }
+      return digit;
+    };
+
+    _this.getBCHTypeInfo = function(data) {
+      var d = data << 10;
+      while (getBCHDigit(d) - getBCHDigit(G15) >= 0) {
+        d ^= (G15 << (getBCHDigit(d) - getBCHDigit(G15) ) );
+      }
+      return ( (data << 10) | d) ^ G15_MASK;
+    };
+
+    _this.getBCHTypeNumber = function(data) {
+      var d = data << 12;
+      while (getBCHDigit(d) - getBCHDigit(G18) >= 0) {
+        d ^= (G18 << (getBCHDigit(d) - getBCHDigit(G18) ) );
+      }
+      return (data << 12) | d;
+    };
+
+    _this.getPatternPosition = function(typeNumber) {
+      return PATTERN_POSITION_TABLE[typeNumber - 1];
+    };
+
+    _this.getMaskFunction = function(maskPattern) {
+
+      switch (maskPattern) {
+
+      case QRMaskPattern.PATTERN000 :
+        return function(i, j) { return (i + j) % 2 == 0; };
+      case QRMaskPattern.PATTERN001 :
+        return function(i, j) { return i % 2 == 0; };
+      case QRMaskPattern.PATTERN010 :
+        return function(i, j) { return j % 3 == 0; };
+      case QRMaskPattern.PATTERN011 :
+        return function(i, j) { return (i + j) % 3 == 0; };
+      case QRMaskPattern.PATTERN100 :
+        return function(i, j) { return (Math.floor(i / 2) + Math.floor(j / 3) ) % 2 == 0; };
+      case QRMaskPattern.PATTERN101 :
+        return function(i, j) { return (i * j) % 2 + (i * j) % 3 == 0; };
+      case QRMaskPattern.PATTERN110 :
+        return function(i, j) { return ( (i * j) % 2 + (i * j) % 3) % 2 == 0; };
+      case QRMaskPattern.PATTERN111 :
+        return function(i, j) { return ( (i * j) % 3 + (i + j) % 2) % 2 == 0; };
+
+      default :
+        throw 'bad maskPattern:' + maskPattern;
+      }
+    };
+
+    _this.getErrorCorrectPolynomial = function(errorCorrectLength) {
+      var a = qrPolynomial([1], 0);
+      for (var i = 0; i < errorCorrectLength; i += 1) {
+        a = a.multiply(qrPolynomial([1, QRMath.gexp(i)], 0) );
+      }
+      return a;
+    };
+
+    _this.getLengthInBits = function(mode, type) {
+
+      if (1 <= type && type < 10) {
+
+        // 1 - 9
+
+        switch(mode) {
+        case QRMode.MODE_NUMBER    : return 10;
+        case QRMode.MODE_ALPHA_NUM : return 9;
+        case QRMode.MODE_8BIT_BYTE : return 8;
+        case QRMode.MODE_KANJI     : return 8;
+        default :
+          throw 'mode:' + mode;
+        }
+
+      } else if (type < 27) {
+
+        // 10 - 26
+
+        switch(mode) {
+        case QRMode.MODE_NUMBER    : return 12;
+        case QRMode.MODE_ALPHA_NUM : return 11;
+        case QRMode.MODE_8BIT_BYTE : return 16;
+        case QRMode.MODE_KANJI     : return 10;
+        default :
+          throw 'mode:' + mode;
+        }
+
+      } else if (type < 41) {
+
+        // 27 - 40
+
+        switch(mode) {
+        case QRMode.MODE_NUMBER    : return 14;
+        case QRMode.MODE_ALPHA_NUM : return 13;
+        case QRMode.MODE_8BIT_BYTE : return 16;
+        case QRMode.MODE_KANJI     : return 12;
+        default :
+          throw 'mode:' + mode;
+        }
+
+      } else {
+        throw 'type:' + type;
+      }
+    };
+
+    _this.getLostPoint = function(qrcode) {
+
+      var moduleCount = qrcode.getModuleCount();
+
+      var lostPoint = 0;
+
+      // LEVEL1
+
+      for (var row = 0; row < moduleCount; row += 1) {
+        for (var col = 0; col < moduleCount; col += 1) {
+
+          var sameCount = 0;
+          var dark = qrcode.isDark(row, col);
+
+          for (var r = -1; r <= 1; r += 1) {
+
+            if (row + r < 0 || moduleCount <= row + r) {
+              continue;
+            }
+
+            for (var c = -1; c <= 1; c += 1) {
+
+              if (col + c < 0 || moduleCount <= col + c) {
+                continue;
+              }
+
+              if (r == 0 && c == 0) {
+                continue;
+              }
+
+              if (dark == qrcode.isDark(row + r, col + c) ) {
+                sameCount += 1;
+              }
+            }
+          }
+
+          if (sameCount > 5) {
+            lostPoint += (3 + sameCount - 5);
+          }
+        }
+      };
+
+      // LEVEL2
+
+      for (var row = 0; row < moduleCount - 1; row += 1) {
+        for (var col = 0; col < moduleCount - 1; col += 1) {
+          var count = 0;
+          if (qrcode.isDark(row, col) ) count += 1;
+          if (qrcode.isDark(row + 1, col) ) count += 1;
+          if (qrcode.isDark(row, col + 1) ) count += 1;
+          if (qrcode.isDark(row + 1, col + 1) ) count += 1;
+          if (count == 0 || count == 4) {
+            lostPoint += 3;
+          }
+        }
+      }
+
+      // LEVEL3
+
+      for (var row = 0; row < moduleCount; row += 1) {
+        for (var col = 0; col < moduleCount - 6; col += 1) {
+          if (qrcode.isDark(row, col)
+              && !qrcode.isDark(row, col + 1)
+              &&  qrcode.isDark(row, col + 2)
+              &&  qrcode.isDark(row, col + 3)
+              &&  qrcode.isDark(row, col + 4)
+              && !qrcode.isDark(row, col + 5)
+              &&  qrcode.isDark(row, col + 6) ) {
+            lostPoint += 40;
+          }
+        }
+      }
+
+      for (var col = 0; col < moduleCount; col += 1) {
+        for (var row = 0; row < moduleCount - 6; row += 1) {
+          if (qrcode.isDark(row, col)
+              && !qrcode.isDark(row + 1, col)
+              &&  qrcode.isDark(row + 2, col)
+              &&  qrcode.isDark(row + 3, col)
+              &&  qrcode.isDark(row + 4, col)
+              && !qrcode.isDark(row + 5, col)
+              &&  qrcode.isDark(row + 6, col) ) {
+            lostPoint += 40;
+          }
+        }
+      }
+
+      // LEVEL4
+
+      var darkCount = 0;
+
+      for (var col = 0; col < moduleCount; col += 1) {
+        for (var row = 0; row < moduleCount; row += 1) {
+          if (qrcode.isDark(row, col) ) {
+            darkCount += 1;
+          }
+        }
+      }
+
+      var ratio = Math.abs(100 * darkCount / moduleCount / moduleCount - 50) / 5;
+      lostPoint += ratio * 10;
+
+      return lostPoint;
+    };
+
+    return _this;
+  }();
+
+  //---------------------------------------------------------------------
+  // QRMath
+  //---------------------------------------------------------------------
+
+  var QRMath = function() {
+
+    var EXP_TABLE = new Array(256);
+    var LOG_TABLE = new Array(256);
+
+    // initialize tables
+    for (var i = 0; i < 8; i += 1) {
+      EXP_TABLE[i] = 1 << i;
+    }
+    for (var i = 8; i < 256; i += 1) {
+      EXP_TABLE[i] = EXP_TABLE[i - 4]
+        ^ EXP_TABLE[i - 5]
+        ^ EXP_TABLE[i - 6]
+        ^ EXP_TABLE[i - 8];
+    }
+    for (var i = 0; i < 255; i += 1) {
+      LOG_TABLE[EXP_TABLE[i] ] = i;
+    }
+
+    var _this = {};
+
+    _this.glog = function(n) {
+
+      if (n < 1) {
+        throw 'glog(' + n + ')';
+      }
+
+      return LOG_TABLE[n];
+    };
+
+    _this.gexp = function(n) {
+
+      while (n < 0) {
+        n += 255;
+      }
+
+      while (n >= 256) {
+        n -= 255;
+      }
+
+      return EXP_TABLE[n];
+    };
+
+    return _this;
+  }();
+
+  //---------------------------------------------------------------------
+  // qrPolynomial
+  //---------------------------------------------------------------------
+
+  function qrPolynomial(num, shift) {
+
+    if (typeof num.length == 'undefined') {
+      throw num.length + '/' + shift;
+    }
+
+    var _num = function() {
+      var offset = 0;
+      while (offset < num.length && num[offset] == 0) {
+        offset += 1;
+      }
+      var _num = new Array(num.length - offset + shift);
+      for (var i = 0; i < num.length - offset; i += 1) {
+        _num[i] = num[i + offset];
+      }
+      return _num;
+    }();
+
+    var _this = {};
+
+    _this.getAt = function(index) {
+      return _num[index];
+    };
+
+    _this.getLength = function() {
+      return _num.length;
+    };
+
+    _this.multiply = function(e) {
+
+      var num = new Array(_this.getLength() + e.getLength() - 1);
+
+      for (var i = 0; i < _this.getLength(); i += 1) {
+        for (var j = 0; j < e.getLength(); j += 1) {
+          num[i + j] ^= QRMath.gexp(QRMath.glog(_this.getAt(i) ) + QRMath.glog(e.getAt(j) ) );
+        }
+      }
+
+      return qrPolynomial(num, 0);
+    };
+
+    _this.mod = function(e) {
+
+      if (_this.getLength() - e.getLength() < 0) {
+        return _this;
+      }
+
+      var ratio = QRMath.glog(_this.getAt(0) ) - QRMath.glog(e.getAt(0) );
+
+      var num = new Array(_this.getLength() );
+      for (var i = 0; i < _this.getLength(); i += 1) {
+        num[i] = _this.getAt(i);
+      }
+
+      for (var i = 0; i < e.getLength(); i += 1) {
+        num[i] ^= QRMath.gexp(QRMath.glog(e.getAt(i) ) + ratio);
+      }
+
+      // recursive call
+      return qrPolynomial(num, 0).mod(e);
+    };
+
+    return _this;
+  };
+
+  //---------------------------------------------------------------------
+  // QRRSBlock
+  //---------------------------------------------------------------------
+
+  var QRRSBlock = function() {
+
+    var RS_BLOCK_TABLE = [
+
+      // L
+      // M
+      // Q
+      // H
+
+      // 1
+      [1, 26, 19],
+      [1, 26, 16],
+      [1, 26, 13],
+      [1, 26, 9],
+
+      // 2
+      [1, 44, 34],
+      [1, 44, 28],
+      [1, 44, 22],
+      [1, 44, 16],
+
+      // 3
+      [1, 70, 55],
+      [1, 70, 44],
+      [2, 35, 17],
+      [2, 35, 13],
+
+      // 4
+      [1, 100, 80],
+      [2, 50, 32],
+      [2, 50, 24],
+      [4, 25, 9],
+
+      // 5
+      [1, 134, 108],
+      [2, 67, 43],
+      [2, 33, 15, 2, 34, 16],
+      [2, 33, 11, 2, 34, 12],
+
+      // 6
+      [2, 86, 68],
+      [4, 43, 27],
+      [4, 43, 19],
+      [4, 43, 15],
+
+      // 7
+      [2, 98, 78],
+      [4, 49, 31],
+      [2, 32, 14, 4, 33, 15],
+      [4, 39, 13, 1, 40, 14],
+
+      // 8
+      [2, 121, 97],
+      [2, 60, 38, 2, 61, 39],
+      [4, 40, 18, 2, 41, 19],
+      [4, 40, 14, 2, 41, 15],
+
+      // 9
+      [2, 146, 116],
+      [3, 58, 36, 2, 59, 37],
+      [4, 36, 16, 4, 37, 17],
+      [4, 36, 12, 4, 37, 13],
+
+      // 10
+      [2, 86, 68, 2, 87, 69],
+      [4, 69, 43, 1, 70, 44],
+      [6, 43, 19, 2, 44, 20],
+      [6, 43, 15, 2, 44, 16],
+
+      // 11
+      [4, 101, 81],
+      [1, 80, 50, 4, 81, 51],
+      [4, 50, 22, 4, 51, 23],
+      [3, 36, 12, 8, 37, 13],
+
+      // 12
+      [2, 116, 92, 2, 117, 93],
+      [6, 58, 36, 2, 59, 37],
+      [4, 46, 20, 6, 47, 21],
+      [7, 42, 14, 4, 43, 15],
+
+      // 13
+      [4, 133, 107],
+      [8, 59, 37, 1, 60, 38],
+      [8, 44, 20, 4, 45, 21],
+      [12, 33, 11, 4, 34, 12],
+
+      // 14
+      [3, 145, 115, 1, 146, 116],
+      [4, 64, 40, 5, 65, 41],
+      [11, 36, 16, 5, 37, 17],
+      [11, 36, 12, 5, 37, 13],
+
+      // 15
+      [5, 109, 87, 1, 110, 88],
+      [5, 65, 41, 5, 66, 42],
+      [5, 54, 24, 7, 55, 25],
+      [11, 36, 12, 7, 37, 13],
+
+      // 16
+      [5, 122, 98, 1, 123, 99],
+      [7, 73, 45, 3, 74, 46],
+      [15, 43, 19, 2, 44, 20],
+      [3, 45, 15, 13, 46, 16],
+
+      // 17
+      [1, 135, 107, 5, 136, 108],
+      [10, 74, 46, 1, 75, 47],
+      [1, 50, 22, 15, 51, 23],
+      [2, 42, 14, 17, 43, 15],
+
+      // 18
+      [5, 150, 120, 1, 151, 121],
+      [9, 69, 43, 4, 70, 44],
+      [17, 50, 22, 1, 51, 23],
+      [2, 42, 14, 19, 43, 15],
+
+      // 19
+      [3, 141, 113, 4, 142, 114],
+      [3, 70, 44, 11, 71, 45],
+      [17, 47, 21, 4, 48, 22],
+      [9, 39, 13, 16, 40, 14],
+
+      // 20
+      [3, 135, 107, 5, 136, 108],
+      [3, 67, 41, 13, 68, 42],
+      [15, 54, 24, 5, 55, 25],
+      [15, 43, 15, 10, 44, 16],
+
+      // 21
+      [4, 144, 116, 4, 145, 117],
+      [17, 68, 42],
+      [17, 50, 22, 6, 51, 23],
+      [19, 46, 16, 6, 47, 17],
+
+      // 22
+      [2, 139, 111, 7, 140, 112],
+      [17, 74, 46],
+      [7, 54, 24, 16, 55, 25],
+      [34, 37, 13],
+
+      // 23
+      [4, 151, 121, 5, 152, 122],
+      [4, 75, 47, 14, 76, 48],
+      [11, 54, 24, 14, 55, 25],
+      [16, 45, 15, 14, 46, 16],
+
+      // 24
+      [6, 147, 117, 4, 148, 118],
+      [6, 73, 45, 14, 74, 46],
+      [11, 54, 24, 16, 55, 25],
+      [30, 46, 16, 2, 47, 17],
+
+      // 25
+      [8, 132, 106, 4, 133, 107],
+      [8, 75, 47, 13, 76, 48],
+      [7, 54, 24, 22, 55, 25],
+      [22, 45, 15, 13, 46, 16],
+
+      // 26
+      [10, 142, 114, 2, 143, 115],
+      [19, 74, 46, 4, 75, 47],
+      [28, 50, 22, 6, 51, 23],
+      [33, 46, 16, 4, 47, 17],
+
+      // 27
+      [8, 152, 122, 4, 153, 123],
+      [22, 73, 45, 3, 74, 46],
+      [8, 53, 23, 26, 54, 24],
+      [12, 45, 15, 28, 46, 16],
+
+      // 28
+      [3, 147, 117, 10, 148, 118],
+      [3, 73, 45, 23, 74, 46],
+      [4, 54, 24, 31, 55, 25],
+      [11, 45, 15, 31, 46, 16],
+
+      // 29
+      [7, 146, 116, 7, 147, 117],
+      [21, 73, 45, 7, 74, 46],
+      [1, 53, 23, 37, 54, 24],
+      [19, 45, 15, 26, 46, 16],
+
+      // 30
+      [5, 145, 115, 10, 146, 116],
+      [19, 75, 47, 10, 76, 48],
+      [15, 54, 24, 25, 55, 25],
+      [23, 45, 15, 25, 46, 16],
+
+      // 31
+      [13, 145, 115, 3, 146, 116],
+      [2, 74, 46, 29, 75, 47],
+      [42, 54, 24, 1, 55, 25],
+      [23, 45, 15, 28, 46, 16],
+
+      // 32
+      [17, 145, 115],
+      [10, 74, 46, 23, 75, 47],
+      [10, 54, 24, 35, 55, 25],
+      [19, 45, 15, 35, 46, 16],
+
+      // 33
+      [17, 145, 115, 1, 146, 116],
+      [14, 74, 46, 21, 75, 47],
+      [29, 54, 24, 19, 55, 25],
+      [11, 45, 15, 46, 46, 16],
+
+      // 34
+      [13, 145, 115, 6, 146, 116],
+      [14, 74, 46, 23, 75, 47],
+      [44, 54, 24, 7, 55, 25],
+      [59, 46, 16, 1, 47, 17],
+
+      // 35
+      [12, 151, 121, 7, 152, 122],
+      [12, 75, 47, 26, 76, 48],
+      [39, 54, 24, 14, 55, 25],
+      [22, 45, 15, 41, 46, 16],
+
+      // 36
+      [6, 151, 121, 14, 152, 122],
+      [6, 75, 47, 34, 76, 48],
+      [46, 54, 24, 10, 55, 25],
+      [2, 45, 15, 64, 46, 16],
+
+      // 37
+      [17, 152, 122, 4, 153, 123],
+      [29, 74, 46, 14, 75, 47],
+      [49, 54, 24, 10, 55, 25],
+      [24, 45, 15, 46, 46, 16],
+
+      // 38
+      [4, 152, 122, 18, 153, 123],
+      [13, 74, 46, 32, 75, 47],
+      [48, 54, 24, 14, 55, 25],
+      [42, 45, 15, 32, 46, 16],
+
+      // 39
+      [20, 147, 117, 4, 148, 118],
+      [40, 75, 47, 7, 76, 48],
+      [43, 54, 24, 22, 55, 25],
+      [10, 45, 15, 67, 46, 16],
+
+      // 40
+      [19, 148, 118, 6, 149, 119],
+      [18, 75, 47, 31, 76, 48],
+      [34, 54, 24, 34, 55, 25],
+      [20, 45, 15, 61, 46, 16]
+    ];
+
+    var qrRSBlock = function(totalCount, dataCount) {
+      var _this = {};
+      _this.totalCount = totalCount;
+      _this.dataCount = dataCount;
+      return _this;
+    };
+
+    var _this = {};
+
+    var getRsBlockTable = function(typeNumber, errorCorrectionLevel) {
+
+      switch(errorCorrectionLevel) {
+      case QRErrorCorrectionLevel.L :
+        return RS_BLOCK_TABLE[(typeNumber - 1) * 4 + 0];
+      case QRErrorCorrectionLevel.M :
+        return RS_BLOCK_TABLE[(typeNumber - 1) * 4 + 1];
+      case QRErrorCorrectionLevel.Q :
+        return RS_BLOCK_TABLE[(typeNumber - 1) * 4 + 2];
+      case QRErrorCorrectionLevel.H :
+        return RS_BLOCK_TABLE[(typeNumber - 1) * 4 + 3];
+      default :
+        return undefined;
+      }
+    };
+
+    _this.getRSBlocks = function(typeNumber, errorCorrectionLevel) {
+
+      var rsBlock = getRsBlockTable(typeNumber, errorCorrectionLevel);
+
+      if (typeof rsBlock == 'undefined') {
+        throw 'bad rs block @ typeNumber:' + typeNumber +
+            '/errorCorrectionLevel:' + errorCorrectionLevel;
+      }
+
+      var length = rsBlock.length / 3;
+
+      var list = [];
+
+      for (var i = 0; i < length; i += 1) {
+
+        var count = rsBlock[i * 3 + 0];
+        var totalCount = rsBlock[i * 3 + 1];
+        var dataCount = rsBlock[i * 3 + 2];
+
+        for (var j = 0; j < count; j += 1) {
+          list.push(qrRSBlock(totalCount, dataCount) );
+        }
+      }
+
+      return list;
+    };
+
+    return _this;
+  }();
+
+  //---------------------------------------------------------------------
+  // qrBitBuffer
+  //---------------------------------------------------------------------
+
+  var qrBitBuffer = function() {
+
+    var _buffer = [];
+    var _length = 0;
+
+    var _this = {};
+
+    _this.getBuffer = function() {
+      return _buffer;
+    };
+
+    _this.getAt = function(index) {
+      var bufIndex = Math.floor(index / 8);
+      return ( (_buffer[bufIndex] >>> (7 - index % 8) ) & 1) == 1;
+    };
+
+    _this.put = function(num, length) {
+      for (var i = 0; i < length; i += 1) {
+        _this.putBit( ( (num >>> (length - i - 1) ) & 1) == 1);
+      }
+    };
+
+    _this.getLengthInBits = function() {
+      return _length;
+    };
+
+    _this.putBit = function(bit) {
+
+      var bufIndex = Math.floor(_length / 8);
+      if (_buffer.length <= bufIndex) {
+        _buffer.push(0);
+      }
+
+      if (bit) {
+        _buffer[bufIndex] |= (0x80 >>> (_length % 8) );
+      }
+
+      _length += 1;
+    };
+
+    return _this;
+  };
+
+  //---------------------------------------------------------------------
+  // qrNumber
+  //---------------------------------------------------------------------
+
+  var qrNumber = function(data) {
+
+    var _mode = QRMode.MODE_NUMBER;
+    var _data = data;
+
+    var _this = {};
+
+    _this.getMode = function() {
+      return _mode;
+    };
+
+    _this.getLength = function(buffer) {
+      return _data.length;
+    };
+
+    _this.write = function(buffer) {
+
+      var data = _data;
+
+      var i = 0;
+
+      while (i + 2 < data.length) {
+        buffer.put(strToNum(data.substring(i, i + 3) ), 10);
+        i += 3;
+      }
+
+      if (i < data.length) {
+        if (data.length - i == 1) {
+          buffer.put(strToNum(data.substring(i, i + 1) ), 4);
+        } else if (data.length - i == 2) {
+          buffer.put(strToNum(data.substring(i, i + 2) ), 7);
+        }
+      }
+    };
+
+    var strToNum = function(s) {
+      var num = 0;
+      for (var i = 0; i < s.length; i += 1) {
+        num = num * 10 + chatToNum(s.charAt(i) );
+      }
+      return num;
+    };
+
+    var chatToNum = function(c) {
+      if ('0' <= c && c <= '9') {
+        return c.charCodeAt(0) - '0'.charCodeAt(0);
+      }
+      throw 'illegal char :' + c;
+    };
+
+    return _this;
+  };
+
+  //---------------------------------------------------------------------
+  // qrAlphaNum
+  //---------------------------------------------------------------------
+
+  var qrAlphaNum = function(data) {
+
+    var _mode = QRMode.MODE_ALPHA_NUM;
+    var _data = data;
+
+    var _this = {};
+
+    _this.getMode = function() {
+      return _mode;
+    };
+
+    _this.getLength = function(buffer) {
+      return _data.length;
+    };
+
+    _this.write = function(buffer) {
+
+      var s = _data;
+
+      var i = 0;
+
+      while (i + 1 < s.length) {
+        buffer.put(
+          getCode(s.charAt(i) ) * 45 +
+          getCode(s.charAt(i + 1) ), 11);
+        i += 2;
+      }
+
+      if (i < s.length) {
+        buffer.put(getCode(s.charAt(i) ), 6);
+      }
+    };
+
+    var getCode = function(c) {
+
+      if ('0' <= c && c <= '9') {
+        return c.charCodeAt(0) - '0'.charCodeAt(0);
+      } else if ('A' <= c && c <= 'Z') {
+        return c.charCodeAt(0) - 'A'.charCodeAt(0) + 10;
+      } else {
+        switch (c) {
+        case ' ' : return 36;
+        case '$' : return 37;
+        case '%' : return 38;
+        case '*' : return 39;
+        case '+' : return 40;
+        case '-' : return 41;
+        case '.' : return 42;
+        case '/' : return 43;
+        case ':' : return 44;
+        default :
+          throw 'illegal char :' + c;
+        }
+      }
+    };
+
+    return _this;
+  };
+
+  //---------------------------------------------------------------------
+  // qr8BitByte
+  //---------------------------------------------------------------------
+
+  var qr8BitByte = function(data) {
+
+    var _mode = QRMode.MODE_8BIT_BYTE;
+    var _data = data;
+    var _bytes = qrcode.stringToBytes(data);
+
+    var _this = {};
+
+    _this.getMode = function() {
+      return _mode;
+    };
+
+    _this.getLength = function(buffer) {
+      return _bytes.length;
+    };
+
+    _this.write = function(buffer) {
+      for (var i = 0; i < _bytes.length; i += 1) {
+        buffer.put(_bytes[i], 8);
+      }
+    };
+
+    return _this;
+  };
+
+  //---------------------------------------------------------------------
+  // qrKanji
+  //---------------------------------------------------------------------
+
+  var qrKanji = function(data) {
+
+    var _mode = QRMode.MODE_KANJI;
+    var _data = data;
+
+    var stringToBytes = qrcode.stringToBytesFuncs['SJIS'];
+    if (!stringToBytes) {
+      throw 'sjis not supported.';
+    }
+    !function(c, code) {
+      // self test for sjis support.
+      var test = stringToBytes(c);
+      if (test.length != 2 || ( (test[0] << 8) | test[1]) != code) {
+        throw 'sjis not supported.';
+      }
+    }('\u53cb', 0x9746);
+
+    var _bytes = stringToBytes(data);
+
+    var _this = {};
+
+    _this.getMode = function() {
+      return _mode;
+    };
+
+    _this.getLength = function(buffer) {
+      return ~~(_bytes.length / 2);
+    };
+
+    _this.write = function(buffer) {
+
+      var data = _bytes;
+
+      var i = 0;
+
+      while (i + 1 < data.length) {
+
+        var c = ( (0xff & data[i]) << 8) | (0xff & data[i + 1]);
+
+        if (0x8140 <= c && c <= 0x9FFC) {
+          c -= 0x8140;
+        } else if (0xE040 <= c && c <= 0xEBBF) {
+          c -= 0xC140;
+        } else {
+          throw 'illegal char at ' + (i + 1) + '/' + c;
+        }
+
+        c = ( (c >>> 8) & 0xff) * 0xC0 + (c & 0xff);
+
+        buffer.put(c, 13);
+
+        i += 2;
+      }
+
+      if (i < data.length) {
+        throw 'illegal char at ' + (i + 1);
+      }
+    };
+
+    return _this;
+  };
+
+  //=====================================================================
+  // GIF Support etc.
+  //
+
+  //---------------------------------------------------------------------
+  // byteArrayOutputStream
+  //---------------------------------------------------------------------
+
+  var byteArrayOutputStream = function() {
+
+    var _bytes = [];
+
+    var _this = {};
+
+    _this.writeByte = function(b) {
+      _bytes.push(b & 0xff);
+    };
+
+    _this.writeShort = function(i) {
+      _this.writeByte(i);
+      _this.writeByte(i >>> 8);
+    };
+
+    _this.writeBytes = function(b, off, len) {
+      off = off || 0;
+      len = len || b.length;
+      for (var i = 0; i < len; i += 1) {
+        _this.writeByte(b[i + off]);
+      }
+    };
+
+    _this.writeString = function(s) {
+      for (var i = 0; i < s.length; i += 1) {
+        _this.writeByte(s.charCodeAt(i) );
+      }
+    };
+
+    _this.toByteArray = function() {
+      return _bytes;
+    };
+
+    _this.toString = function() {
+      var s = '';
+      s += '[';
+      for (var i = 0; i < _bytes.length; i += 1) {
+        if (i > 0) {
+          s += ',';
+        }
+        s += _bytes[i];
+      }
+      s += ']';
+      return s;
+    };
+
+    return _this;
+  };
+
+  //---------------------------------------------------------------------
+  // base64EncodeOutputStream
+  //---------------------------------------------------------------------
+
+  var base64EncodeOutputStream = function() {
+
+    var _buffer = 0;
+    var _buflen = 0;
+    var _length = 0;
+    var _base64 = '';
+
+    var _this = {};
+
+    var writeEncoded = function(b) {
+      _base64 += String.fromCharCode(encode(b & 0x3f) );
+    };
+
+    var encode = function(n) {
+      if (n < 0) {
+        // error.
+      } else if (n < 26) {
+        return 0x41 + n;
+      } else if (n < 52) {
+        return 0x61 + (n - 26);
+      } else if (n < 62) {
+        return 0x30 + (n - 52);
+      } else if (n == 62) {
+        return 0x2b;
+      } else if (n == 63) {
+        return 0x2f;
+      }
+      throw 'n:' + n;
+    };
+
+    _this.writeByte = function(n) {
+
+      _buffer = (_buffer << 8) | (n & 0xff);
+      _buflen += 8;
+      _length += 1;
+
+      while (_buflen >= 6) {
+        writeEncoded(_buffer >>> (_buflen - 6) );
+        _buflen -= 6;
+      }
+    };
+
+    _this.flush = function() {
+
+      if (_buflen > 0) {
+        writeEncoded(_buffer << (6 - _buflen) );
+        _buffer = 0;
+        _buflen = 0;
+      }
+
+      if (_length % 3 != 0) {
+        // padding
+        var padlen = 3 - _length % 3;
+        for (var i = 0; i < padlen; i += 1) {
+          _base64 += '=';
+        }
+      }
+    };
+
+    _this.toString = function() {
+      return _base64;
+    };
+
+    return _this;
+  };
+
+  //---------------------------------------------------------------------
+  // base64DecodeInputStream
+  //---------------------------------------------------------------------
+
+  var base64DecodeInputStream = function(str) {
+
+    var _str = str;
+    var _pos = 0;
+    var _buffer = 0;
+    var _buflen = 0;
+
+    var _this = {};
+
+    _this.read = function() {
+
+      while (_buflen < 8) {
+
+        if (_pos >= _str.length) {
+          if (_buflen == 0) {
+            return -1;
+          }
+          throw 'unexpected end of file./' + _buflen;
+        }
+
+        var c = _str.charAt(_pos);
+        _pos += 1;
+
+        if (c == '=') {
+          _buflen = 0;
+          return -1;
+        } else if (c.match(/^\s$/) ) {
+          // ignore if whitespace.
+          continue;
+        }
+
+        _buffer = (_buffer << 6) | decode(c.charCodeAt(0) );
+        _buflen += 6;
+      }
+
+      var n = (_buffer >>> (_buflen - 8) ) & 0xff;
+      _buflen -= 8;
+      return n;
+    };
+
+    var decode = function(c) {
+      if (0x41 <= c && c <= 0x5a) {
+        return c - 0x41;
+      } else if (0x61 <= c && c <= 0x7a) {
+        return c - 0x61 + 26;
+      } else if (0x30 <= c && c <= 0x39) {
+        return c - 0x30 + 52;
+      } else if (c == 0x2b) {
+        return 62;
+      } else if (c == 0x2f) {
+        return 63;
+      } else {
+        throw 'c:' + c;
+      }
+    };
+
+    return _this;
+  };
+
+  //---------------------------------------------------------------------
+  // gifImage (B/W)
+  //---------------------------------------------------------------------
+
+  var gifImage = function(width, height) {
+
+    var _width = width;
+    var _height = height;
+    var _data = new Array(width * height);
+
+    var _this = {};
+
+    _this.setPixel = function(x, y, pixel) {
+      _data[y * _width + x] = pixel;
+    };
+
+    _this.write = function(out) {
+
+      //---------------------------------
+      // GIF Signature
+
+      out.writeString('GIF87a');
+
+      //---------------------------------
+      // Screen Descriptor
+
+      out.writeShort(_width);
+      out.writeShort(_height);
+
+      out.writeByte(0x80); // 2bit
+      out.writeByte(0);
+      out.writeByte(0);
+
+      //---------------------------------
+      // Global Color Map
+
+      // black
+      out.writeByte(0x00);
+      out.writeByte(0x00);
+      out.writeByte(0x00);
+
+      // white
+      out.writeByte(0xff);
+      out.writeByte(0xff);
+      out.writeByte(0xff);
+
+      //---------------------------------
+      // Image Descriptor
+
+      out.writeString(',');
+      out.writeShort(0);
+      out.writeShort(0);
+      out.writeShort(_width);
+      out.writeShort(_height);
+      out.writeByte(0);
+
+      //---------------------------------
+      // Local Color Map
+
+      //---------------------------------
+      // Raster Data
+
+      var lzwMinCodeSize = 2;
+      var raster = getLZWRaster(lzwMinCodeSize);
+
+      out.writeByte(lzwMinCodeSize);
+
+      var offset = 0;
+
+      while (raster.length - offset > 255) {
+        out.writeByte(255);
+        out.writeBytes(raster, offset, 255);
+        offset += 255;
+      }
+
+      out.writeByte(raster.length - offset);
+      out.writeBytes(raster, offset, raster.length - offset);
+      out.writeByte(0x00);
+
+      //---------------------------------
+      // GIF Terminator
+      out.writeString(';');
+    };
+
+    var bitOutputStream = function(out) {
+
+      var _out = out;
+      var _bitLength = 0;
+      var _bitBuffer = 0;
+
+      var _this = {};
+
+      _this.write = function(data, length) {
+
+        if ( (data >>> length) != 0) {
+          throw 'length over';
+        }
+
+        while (_bitLength + length >= 8) {
+          _out.writeByte(0xff & ( (data << _bitLength) | _bitBuffer) );
+          length -= (8 - _bitLength);
+          data >>>= (8 - _bitLength);
+          _bitBuffer = 0;
+          _bitLength = 0;
+        }
+
+        _bitBuffer = (data << _bitLength) | _bitBuffer;
+        _bitLength = _bitLength + length;
+      };
+
+      _this.flush = function() {
+        if (_bitLength > 0) {
+          _out.writeByte(_bitBuffer);
+        }
+      };
+
+      return _this;
+    };
+
+    var getLZWRaster = function(lzwMinCodeSize) {
+
+      var clearCode = 1 << lzwMinCodeSize;
+      var endCode = (1 << lzwMinCodeSize) + 1;
+      var bitLength = lzwMinCodeSize + 1;
+
+      // Setup LZWTable
+      var table = lzwTable();
+
+      for (var i = 0; i < clearCode; i += 1) {
+        table.add(String.fromCharCode(i) );
+      }
+      table.add(String.fromCharCode(clearCode) );
+      table.add(String.fromCharCode(endCode) );
+
+      var byteOut = byteArrayOutputStream();
+      var bitOut = bitOutputStream(byteOut);
+
+      // clear code
+      bitOut.write(clearCode, bitLength);
+
+      var dataIndex = 0;
+
+      var s = String.fromCharCode(_data[dataIndex]);
+      dataIndex += 1;
+
+      while (dataIndex < _data.length) {
+
+        var c = String.fromCharCode(_data[dataIndex]);
+        dataIndex += 1;
+
+        if (table.contains(s + c) ) {
+
+          s = s + c;
+
+        } else {
+
+          bitOut.write(table.indexOf(s), bitLength);
+
+          if (table.size() < 0xfff) {
+
+            if (table.size() == (1 << bitLength) ) {
+              bitLength += 1;
+            }
+
+            table.add(s + c);
+          }
+
+          s = c;
+        }
+      }
+
+      bitOut.write(table.indexOf(s), bitLength);
+
+      // end code
+      bitOut.write(endCode, bitLength);
+
+      bitOut.flush();
+
+      return byteOut.toByteArray();
+    };
+
+    var lzwTable = function() {
+
+      var _map = {};
+      var _size = 0;
+
+      var _this = {};
+
+      _this.add = function(key) {
+        if (_this.contains(key) ) {
+          throw 'dup key:' + key;
+        }
+        _map[key] = _size;
+        _size += 1;
+      };
+
+      _this.size = function() {
+        return _size;
+      };
+
+      _this.indexOf = function(key) {
+        return _map[key];
+      };
+
+      _this.contains = function(key) {
+        return typeof _map[key] != 'undefined';
+      };
+
+      return _this;
+    };
+
+    return _this;
+  };
+
+  var createDataURL = function(width, height, getPixel) {
+    var gif = gifImage(width, height);
+    for (var y = 0; y < height; y += 1) {
+      for (var x = 0; x < width; x += 1) {
+        gif.setPixel(x, y, getPixel(x, y) );
+      }
+    }
+
+    var b = byteArrayOutputStream();
+    gif.write(b);
+
+    var base64 = base64EncodeOutputStream();
+    var bytes = b.toByteArray();
+    for (var i = 0; i < bytes.length; i += 1) {
+      base64.writeByte(bytes[i]);
+    }
+    base64.flush();
+
+    return 'data:image/gif;base64,' + base64;
+  };
+
+  //---------------------------------------------------------------------
+  // returns qrcode function.
+
+  return qrcode;
+}();
+
+// multibyte support
+!function() {
+
+  qrcode.stringToBytesFuncs['UTF-8'] = function(s) {
+    // http://stackoverflow.com/questions/18729405/how-to-convert-utf8-string-to-byte-array
+    function toUTF8Array(str) {
+      var utf8 = [];
+      for (var i=0; i < str.length; i++) {
+        var charcode = str.charCodeAt(i);
+        if (charcode < 0x80) utf8.push(charcode);
+        else if (charcode < 0x800) {
+          utf8.push(0xc0 | (charcode >> 6),
+              0x80 | (charcode & 0x3f));
+        }
+        else if (charcode < 0xd800 || charcode >= 0xe000) {
+          utf8.push(0xe0 | (charcode >> 12),
+              0x80 | ((charcode>>6) & 0x3f),
+              0x80 | (charcode & 0x3f));
+        }
+        // surrogate pair
+        else {
+          i++;
+          // UTF-16 encodes 0x10000-0x10FFFF by
+          // subtracting 0x10000 and splitting the
+          // 20 bits of 0x0-0xFFFFF into two halves
+          charcode = 0x10000 + (((charcode & 0x3ff)<<10)
+            | (str.charCodeAt(i) & 0x3ff));
+          utf8.push(0xf0 | (charcode >>18),
+              0x80 | ((charcode>>12) & 0x3f),
+              0x80 | ((charcode>>6) & 0x3f),
+              0x80 | (charcode & 0x3f));
+        }
+      }
+      return utf8;
+    }
+    return toUTF8Array(s);
+  };
+
+}();
+
+(function (factory) {
+  if (typeof define === 'function' && define.amd) {
+      define([], factory);
+  } else if (typeof exports === 'object') {
+      module.exports = factory();
+  }
+}(function () {
+    return qrcode;
+}));
+
+</script>
+<script>
+// Startwerte aus Brigitte.xlsx (Budget pro Monat in CHF)
+window.SEED = {
+  konten: [
+    // Einnahmen
+    { nr: '3000', name: 'AHV', typ: 'E', budget: 2218, fix: 'fix', tag: 1 },
+    { nr: '6000', name: 'PK', typ: 'E', budget: 1600, fix: 'fix', tag: 1 },
+    { nr: '7000', name: 'Lohn Tonis Zoo', typ: 'E', budget: 800, fix: 'variabel', tag: 25 },
+    // Ausgaben
+    { nr: '4000', name: 'Miete mit Parkplatz', typ: 'A', budget: 1572, fix: 'fix', tag: 1 },
+    { nr: '4010', name: 'Krankenkasse', typ: 'A', budget: 540, fix: 'fix', tag: 1 },
+    { nr: '4020', name: 'Steuern', typ: 'A', budget: 205, fix: 'fix', tag: 1 },
+    { nr: '4030', name: 'Versicherung', typ: 'A', budget: 50, fix: 'fix', tag: 1 },
+    { nr: '4100', name: 'Benzinkosten', typ: 'A', budget: 80 },
+    { nr: '4110', name: 'Haushalt Essen', typ: 'A', budget: 400 },
+    { nr: '4120', name: 'Anschaffungen', typ: 'A', budget: 0 },
+    { nr: '4130', name: 'Geschenke', typ: 'A', budget: 0 },
+    { nr: '4140', name: 'Telefonie und Internet', typ: 'A', budget: 90, fix: 'fix', tag: 1 },
+    { nr: '4150', name: 'Arzt/Zahnarzt', typ: 'A', budget: 200 },
+    { nr: '4160', name: 'Coiffeur', typ: 'A', budget: 50 },
+    { nr: '4170', name: 'Kultur', typ: 'A', budget: 0 },
+    { nr: '4180', name: 'Optiker', typ: 'A', budget: 100 },
+    { nr: '4190', name: 'Fitness', typ: 'A', budget: 75, fix: 'fix', tag: 1 },
+    { nr: '4200', name: 'SBB und ÖV', typ: 'A', budget: 125 },
+    { nr: '4210', name: 'Kurse', typ: 'A', budget: 67.5 },
+    { nr: '4220', name: 'APPS', typ: 'A', budget: 20 },
+    { nr: '4230', name: 'Mitgliedschaften (Rega, Paraplegiker)', typ: 'A', budget: 95 },
+    { nr: '4900', name: 'Diverses', typ: 'A', budget: 0 }
+  ]
+};
+
+</script>
+<script>
+'use strict';
+/* Admin-Center der Budget-App
+   Übersicht aller Buchhaltungen (Repositories Buchhaltung_<Name>), anlegen, Personen per Link/QR einladen, Protokoll.
+   Arbeitet direkt mit der GitHub-API und dem Admin-Schlüssel, der nur in diesem Browser gespeichert ist. */
+
+const LS = {
+  get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
+  del(k) { try { localStorage.removeItem(k); } catch {} }
+};
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const chf0 = n => (Math.round(n || 0)).toLocaleString('de-CH');
+const chf = n => (Math.round((n || 0) * 100) / 100).toLocaleString('de-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const pad = n => String(n).padStart(2, '0');
+const heute = () => { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; };
+const fmtDate = iso => iso ? iso.slice(0, 10).split('-').reverse().join('.') : '';
+const fmtZeit = iso => { try { return new Date(iso).toLocaleString('de-CH', { dateStyle: 'short', timeStyle: 'short' }); } catch { return iso; } };
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+const b64enc = s => { const b = new TextEncoder().encode(s); let x = ''; for (let i = 0; i < b.length; i += 0x8000) x += String.fromCharCode(...b.subarray(i, i + 0x8000)); return btoa(x); };
+const b64dec = s => new TextDecoder().decode(Uint8Array.from(atob(s.replace(/\s/g, '')), c => c.charCodeAt(0)));
+const b64url = s => b64enc(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+const PREFIX = 'Buchhaltung_';
+const APP_URL = location.protocol === 'file:' ? 'https://pasaruwa-bit.github.io/Buchhaltung_App/' : new URL('./', location.href).href;
+
+const A = { token: LS.get('admin.token', ''), login: '', tab: 'uebersicht', repos: [], info: {}, laden: false, protokoll: null, filter: { bh: '', wer: '', monate: 3 } };
+
+/* ---------- GitHub ---------- */
+async function gh(path, opt = {}, token = A.token) {
+  const r = await fetch('https://api.github.com' + path, {
+    method: opt.method || 'GET', cache: 'no-store',
+    headers: { Authorization: 'Bearer ' + token, Accept: opt.raw ? 'application/vnd.github.raw+json' : 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28', ...(opt.body ? { 'Content-Type': 'application/json' } : {}) },
+    body: opt.body ? JSON.stringify(opt.body) : undefined
+  });
+  if (opt.ok404 && r.status === 404) return null;
+  if (!r.ok) {
+    let msg = ''; try { msg = (await r.json()).message; } catch {}
+    const e = new Error(r.status === 401 ? 'Admin-Schlüssel ungültig oder abgelaufen.' : r.status === 403 ? 'Keine Berechtigung (' + msg + ')' : `GitHub-Fehler ${r.status}: ${msg}`);
+    e.status = r.status; throw e;
+  }
+  if (r.status === 204) return true;
+  return opt.raw ? r.text() : r.json();
+}
+async function leseDatei(repo, pfad) {
+  const j = await gh(`/repos/${repo}/contents/${pfad}`, { ok404: true });
+  if (!j) return null;
+  const text = j.content ? b64dec(j.content) : await gh(`/repos/${repo}/contents/${pfad}`, { raw: true });
+  return { text, sha: j.sha };
+}
+async function schreibeDatei(repo, pfad, text, nachricht, sha) {
+  return gh(`/repos/${repo}/contents/${pfad}`, { method: 'PUT', body: { message: nachricht, content: b64enc(text), ...(sha ? { sha } : {}) } });
+}
+
+/* ---------- Laden ---------- */
+const anzeigeName = repoName => repoName.slice(PREFIX.length).replace(/_/g, ' ');
+async function ladeAlles() {
+  if (!A.token) return;
+  A.laden = true; render();
+  try {
+    const me = await gh('/user'); A.login = me.login;
+    document.getElementById('wer').textContent = me.login;
+    const repos = [];
+    for (let p = 1; p < 5; p++) {
+      const page = await gh(`/user/repos?per_page=100&page=${p}&affiliation=owner&sort=full_name`);
+      repos.push(...page); if (page.length < 100) break;
+    }
+    A.repos = repos.filter(r => r.name.toLowerCase().startsWith(PREFIX.toLowerCase()) && r.name.toLowerCase() !== 'buchhaltung_app')
+      .map(r => ({ name: r.name, full: r.full_name, privat: r.private, url: r.html_url, pushed: r.pushed_at }));
+    await Promise.all(A.repos.map(ladeInfo));
+  } catch (e) { toast(e.message); }
+  A.laden = false; render();
+}
+async function ladeInfo(r) {
+  const info = { daten: null, personen: [], fehler: '' };
+  try {
+    const d = await leseDatei(r.full, 'data.json'); if (d) info.daten = JSON.parse(d.text);
+    const p = await leseDatei(r.full, 'admin/personen.json'); if (p) { info.personen = JSON.parse(p.text); info.personenSha = p.sha; }
+  } catch (e) { info.fehler = e.message; }
+  A.info[r.full] = info;
+}
+
+/* ---------- Berechnungen ---------- */
+function jahresBudget(k, y) { const j = k.jahre || {}; if (j[y] != null) return j[y]; const f = Object.keys(j).filter(x => x < y).sort().pop(); return f ? j[f] : (k.budget ? k.budget * 12 : 0); }
+function kennzahlen(d, y = heute().slice(0, 4)) {
+  const r = { budA: 0, budE: 0, istA: 0, istE: 0, anzahl: 0, letzte: null, konten: {} };
+  if (!d) return r;
+  const kmap = {}; for (const k of d.konten || []) { if (k.aktiv === false) continue; kmap[k.id] = k; const b = jahresBudget(k, y); if (k.typ === 'A') r.budA += b; else r.budE += b; r.konten[k.id] = { k, bud: b, ist: 0 }; }
+  for (const b of d.buchungen || []) {
+    if (!r.letzte || (b.u || 0) > r.letzte.u) r.letzte = b;
+    if (!b.datum || !b.datum.startsWith(y)) continue;
+    const k = kmap[b.kontoId]; if (!k) continue;
+    r.anzahl++; if (k.typ === 'A') r.istA += b.betrag; else r.istE += b.betrag;
+    r.konten[k.id].ist += b.betrag;
+  }
+  return r;
+}
+function ablaufStatus(p) {
+  if (p.gesperrt) return ['aus', 'gesperrt'];
+  if (!p.ablauf) return ['', ''];
+  const tage = Math.round((new Date(p.ablauf) - new Date(heute())) / 864e5);
+  if (tage < 0) return ['aus', 'abgelaufen'];
+  if (tage <= 30) return ['warnp', `läuft in ${tage} Tagen ab`];
+  return ['', 'bis ' + fmtDate(p.ablauf)];
+}
+
+/* ---------- Darstellung ---------- */
+function render() {
+  document.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === A.tab));
+  const v = document.getElementById('view');
+  if (!A.token && A.tab !== 'einstellungen') A.tab = 'einstellungen';
+  v.innerHTML = { uebersicht: vUebersicht, neu: vNeu, protokoll: vProtokoll, einstellungen: vEinstellungen }[A.tab]();
+  bind(v);
+}
+function bind(root) {
+  root.querySelectorAll('[data-act]').forEach(el => {
+    const [act, arg] = el.dataset.act.split('|');
+    const ev = el.tagName === 'SELECT' ? 'change' : 'click';
+    el.addEventListener(ev, e => { e.stopPropagation(); AKT[act] && AKT[act](arg, el, e); });
+  });
+}
+function bar(soll, ist) {
+  const p = soll > 0 ? Math.min(100, ist / soll * 100) : (ist > 0 ? 100 : 0);
+  const cls = ist <= soll ? '' : (soll > 0 && ist <= soll * 1.1 ? 'warn' : 'bad');
+  return `<div class="bar ${cls}"><i style="width:${p.toFixed(1)}%"></i></div>`;
+}
+
+function vUebersicht() {
+  if (A.laden && !A.repos.length) return `<div class="card empty">Buchhaltungen werden geladen…</div>`;
+  if (!A.repos.length) return `<div class="card"><h2>Noch keine Buchhaltungen</h2><p class="muted">Es wurde kein Repository mit dem Namen „${PREFIX}…“ gefunden.</p><button class="btn" data-act="tab|neu">Erste Buchhaltung anlegen</button></div>`;
+  const y = heute().slice(0, 4);
+  let tA = 0, tB = 0, tN = 0;
+  const kacheln = A.repos.map(r => {
+    const inf = A.info[r.full] || {}, z = kennzahlen(inf.daten, y);
+    tA += z.istA; tB += z.budA; tN += z.anzahl;
+    const pers = (inf.personen || []).map(p => { const [c, t] = ablaufStatus(p); return `<span class="pill ${c}" title="${esc(t)}">${esc(p.name)}${t && c ? ' · ' + esc(t) : ''}</span>`; }).join('') || '<span class="muted">noch niemand eingeladen</span>';
+    return `<div class="card">
+      <div class="row"><h2 style="margin:0">${esc(anzeigeName(r.name))}</h2>${r.privat ? '<span class="pill">privat</span>' : '<span class="pill aus">⚠ öffentlich</span>'}</div>
+      <div class="muted"><a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.full)}</a></div>
+      ${inf.fehler ? `<p class="neg">${esc(inf.fehler)}</p>` : !inf.daten ? `<p class="muted">Noch keine Daten (data.json fehlt).</p>` : `
+      <div class="row" style="margin-top:10px"><span>Ausgaben ${y}</span><span class="num"><b>${chf0(z.istA)}</b> / ${chf0(z.budA)} CHF</span></div>${bar(z.budA, z.istA)}
+      <div class="row muted"><span>Einnahmen ${chf0(z.istE)} / ${chf0(z.budE)}</span><span>${z.anzahl} Buchungen</span></div>
+      <div class="muted">Letzte Buchung: ${z.letzte ? fmtZeit(new Date(z.letzte.u).toISOString()) + (z.letzte.von ? ' · ' + esc(z.letzte.von) : '') : '–'}</div>`}
+      <div class="personen">${pers}</div>
+      <div class="btns" style="margin-top:12px"><button class="btn sm" data-act="einladen|${esc(r.full)}">+ Person einladen</button>
+      <button class="btn sec sm" data-act="details|${esc(r.full)}">Details</button>
+      <button class="btn sec sm" data-act="protokollVon|${esc(r.full)}">Protokoll</button></div></div>`;
+  }).join('');
+  return `<div class="card"><div class="row"><div><h2 style="margin:0">${A.repos.length} Buchhaltungen</h2><div class="muted">Ausgaben ${y} total ${chf0(tA)} von ${chf0(tB)} CHF · ${tN} Buchungen</div></div>
+    ${A.laden ? '<span class="muted">aktualisiere…</span>' : ''}</div></div><div class="kacheln">${kacheln}</div>`;
+}
+
+function vNeu() {
+  const opts = A.repos.map(r => `<option value="${esc(r.full)}">Kopie von ${esc(anzeigeName(r.name))} (Kontoplan + Budget)</option><option value="${esc(r.full)}|leer">Kopie von ${esc(anzeigeName(r.name))} (nur Kontoplan)</option>`).join('');
+  return `<div class="card"><h2>Neue Buchhaltung anlegen</h2>
+    <label for="nName">Name (z. B. Toni)</label><input id="nName" placeholder="Name der Person oder Gruppe" autocomplete="off">
+    <p class="muted" id="nVorschau">Repository: ${esc(A.login || 'benutzer')}/${PREFIX}…</p>
+    <label for="nVorlage">Kontoplan</label><select id="nVorlage"><option value="standard">Standard-Kontoplan, ohne Budget</option>${opts}<option value="leerplan">Leer (keine Konten)</option></select>
+    <div class="btns" style="margin-top:16px"><button class="btn" data-act="anlegen">Buchhaltung anlegen</button></div>
+    <p class="muted" style="margin-top:12px">Erstellt ein <b>privates</b> Repository mit dem Kontoplan. Danach kannst du Personen einladen.</p></div>`;
+}
+
+function vProtokoll() {
+  if (!A.protokoll) { setTimeout(ladeProtokoll, 0); return `<div class="card empty">Protokoll wird geladen…</div>`; }
+  const f = A.filter;
+  let liste = A.protokoll.filter(e => (!f.bh || e._repo === f.bh) && (!f.wer || e.wer === f.wer));
+  const personen = [...new Set(A.protokoll.map(e => e.wer))].sort();
+  const zeilen = liste.slice(0, 500).map(e => {
+    const alt = e.betrag_alt != null ? chf(e.betrag_alt) : '', neu = e.betrag_neu != null ? chf(e.betrag_neu) : '';
+    return `<tr><td class="klein">${fmtZeit(e.zeit)}</td><td>${esc(anzeigeName(e._repo.split('/')[1]))}</td><td>${esc(e.wer)}</td>
+      <td><span class="pill ${e.aktion === 'gelöscht' ? 'aus' : e.aktion === 'geändert' ? 'warnp' : ''}">${esc(e.aktion)}</span></td>
+      <td>${esc(e.objekt || '')}${e.datum ? ' ' + fmtDate(e.datum) : ''}${e.jahr ? ' ' + esc(e.jahr) : ''}<div class="klein">${esc(e.konto || '')}${e.text ? ' · ' + esc(e.text) : ''}${e.felder ? ' · ' + esc(e.felder) : ''}${e.beleg ? ' · 📎' : ''}</div></td>
+      <td class="n">${alt && neu && alt !== neu ? `<s class="muted">${alt}</s> → ${neu}` : (neu || alt)}</td><td class="klein">${esc(e.geraet || '')}</td></tr>`;
+  }).join('');
+  return `<div class="card"><h2>Protokoll</h2><div class="filter">
+    <select data-act="filterBh"><option value="">Alle Buchhaltungen</option>${A.repos.map(r => `<option value="${esc(r.full)}" ${f.bh === r.full ? 'selected' : ''}>${esc(anzeigeName(r.name))}</option>`).join('')}</select>
+    <select data-act="filterWer"><option value="">Alle Personen</option>${personen.map(p => `<option ${f.wer === p ? 'selected' : ''}>${esc(p)}</option>`).join('')}</select>
+    <select data-act="filterMonate">${[1, 3, 6, 12, 24].map(m => `<option value="${m}" ${f.monate === m ? 'selected' : ''}>letzte ${m} Monat${m > 1 ? 'e' : ''}</option>`).join('')}</select>
+    <button class="btn sec" data-act="csv">Als CSV (Excel)</button></div></div>
+    <div class="card"><div class="tablewrap"><table><tr><th>Zeit</th><th>Buchhaltung</th><th>Person</th><th>Aktion</th><th>Was</th><th class="n">Betrag</th><th class="klein">Gerät</th></tr>
+    ${zeilen || '<tr><td colspan="7" class="muted">Keine Einträge im gewählten Zeitraum.</td></tr>'}</table></div>
+    <p class="muted">${liste.length} Einträge${liste.length > 500 ? ' (500 angezeigt, CSV enthält alle)' : ''}. Änderungen erscheinen, sobald das Gerät der Person abgeglichen hat. Zusätzlich führt GitHub für jedes Repository eine Änderungshistorie („Commits“).</p></div>`;
+}
+async function ladeProtokoll() {
+  const ab = new Date(); ab.setMonth(ab.getMonth() - A.filter.monate + 1); const abM = `${ab.getFullYear()}-${pad(ab.getMonth() + 1)}`;
+  const alle = [];
+  await Promise.all(A.repos.map(async r => {
+    try {
+      const dir = await gh(`/repos/${r.full}/contents/protokoll`, { ok404: true });
+      if (!Array.isArray(dir)) return;
+      for (const f of dir.filter(f => f.name.endsWith('.jsonl') && f.name.slice(0, 7) >= abM)) {
+        const t = await gh(`/repos/${r.full}/contents/protokoll/${f.name}`, { raw: true });
+        for (const z of t.split('\n')) { if (!z.trim()) continue; try { alle.push({ ...JSON.parse(z), _repo: r.full }); } catch {} }
+      }
+    } catch (e) { toast(anzeigeName(r.name) + ': ' + e.message); }
+  }));
+  alle.sort((a, b) => String(b.zeit).localeCompare(String(a.zeit)));
+  A.protokoll = alle; if (A.tab === 'protokoll') render();
+}
+
+function vEinstellungen() {
+  return `<div class="card"><h2>Admin-Schlüssel</h2>
+    <p>Das Admin-Center braucht einen Zugangsschlüssel deines GitHub-Kontos. Er wird <b>nur in diesem Browser</b> gespeichert.</p>
+    <ol class="schritte">
+      <li><a href="https://github.com/settings/tokens/new?scopes=repo&description=Budget%20Admin-Center" target="_blank" rel="noopener">Diesen Link öffnen</a> (GitHub, „classic“ Token). Das Häkchen bei <b>repo</b> ist schon gesetzt.</li>
+      <li>Bei <b>Expiration</b> z. B. 1 Jahr wählen, unten auf <b>Generate token</b> klicken.</li>
+      <li>Den Schlüssel (beginnt mit <code>ghp_</code>) kopieren und hier einfügen.</li>
+    </ol>
+    <label for="aT">Admin-Schlüssel</label><input id="aT" type="password" value="${esc(A.token)}" placeholder="ghp_…" autocomplete="off">
+    <div class="btns" style="margin-top:12px"><button class="btn" data-act="tokenSpeichern">Speichern und laden</button>
+    ${A.token ? '<button class="btn danger" data-act="tokenLoeschen">Von diesem Gerät entfernen</button>' : ''}</div>
+    <p class="muted" style="margin-top:12px">⚠ Mit diesem Schlüssel kann man alle deine Repositories lesen und ändern. Nur auf eigenen, gesperrten Geräten verwenden.</p></div>
+    <div class="card"><h2>Links</h2><p><a href="${esc(APP_URL)}" target="_blank" rel="noopener">Budget-App öffnen</a> · <a href="https://github.com/settings/personal-access-tokens" target="_blank" rel="noopener">Schlüssel der Personen verwalten (GitHub)</a></p></div>`;
+}
+
+/* ---------- Bottom-Sheet ---------- */
+function sheet(html, onBind) {
+  const bg = document.createElement('div'); bg.className = 'sheet-bg';
+  bg.innerHTML = `<div class="sheet">${html}</div>`;
+  bg.addEventListener('click', e => { if (e.target === bg) bg.remove(); });
+  document.body.appendChild(bg);
+  const close = () => bg.remove();
+  onBind && onBind(bg.querySelector('.sheet'), close);
+}
+
+/* ---------- Aktionen ---------- */
+const repoVon = full => A.repos.find(r => r.full === full);
+const AKT = {
+  tab: t => { A.tab = t; render(); },
+  tokenSpeichern: async () => { A.token = document.getElementById('aT').value.trim(); LS.set('admin.token', A.token); A.tab = 'uebersicht'; A.protokoll = null; await ladeAlles(); },
+  tokenLoeschen: () => { if (!confirm('Admin-Schlüssel von diesem Gerät entfernen?')) return; A.token = ''; LS.del('admin.token'); A.repos = []; render(); },
+  filterBh: (_, el) => { A.filter.bh = el.value; render(); },
+  filterWer: (_, el) => { A.filter.wer = el.value; render(); },
+  filterMonate: (_, el) => { A.filter.monate = +el.value; A.protokoll = null; render(); },
+  protokollVon: full => { A.filter.bh = full; A.tab = 'protokoll'; render(); },
+  csv: () => {
+    const f = A.filter, rows = [['Zeit', 'Buchhaltung', 'Person', 'Gerät', 'Aktion', 'Objekt', 'Datum', 'Konto', 'Text', 'Betrag alt', 'Betrag neu', 'Felder']];
+    A.protokoll.filter(e => (!f.bh || e._repo === f.bh) && (!f.wer || e.wer === f.wer)).forEach(e => rows.push([fmtZeit(e.zeit), anzeigeName(e._repo.split('/')[1]), e.wer, e.geraet || '', e.aktion, e.objekt || '', fmtDate(e.datum), e.konto || '', e.text || '', e.betrag_alt ?? '', e.betrag_neu ?? '', e.felder || '']));
+    const csv = '﻿' + rows.map(r => r.map(c => { c = String(c); return /[;"\n]/.test(c) ? `"${c.replace(/"/g, '""')}"` : c; }).join(';')).join('\r\n');
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); a.download = `Protokoll_${heute()}.csv`; document.body.appendChild(a); a.click(); a.remove();
+  },
+  anlegen: async () => {
+    const name = document.getElementById('nName').value.trim();
+    if (!name) return toast('Bitte einen Namen eingeben.');
+    const repoName = PREFIX + name.replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/Ä/g, 'Ae').replace(/Ö/g, 'Oe').replace(/Ü/g, 'Ue').replace(/\s+/g, '_').replace(/[^\w.-]/g, '');
+    if (A.repos.some(r => r.name.toLowerCase() === repoName.toLowerCase())) return toast(repoName + ' gibt es schon.');
+    const vorlage = document.getElementById('nVorlage').value;
+    if (!confirm(`Privates Repository ${A.login}/${repoName} anlegen?`)) return;
+    try {
+      toast('Wird angelegt…');
+      const r = await gh('/user/repos', { method: 'POST', body: { name: repoName, private: true, description: `Budget-App: Buchhaltung ${name}`, has_issues: false, has_wiki: false, has_projects: false } });
+      const t = Date.now(); let i = 0; const kid = () => t.toString(36) + 'k' + (i++).toString(36);
+      let konten = [];
+      if (vorlage === 'standard') konten = SEED.konten.map(k => ({ id: kid(), nr: k.nr, name: k.name, typ: k.typ, jahre: {}, fixBetrag: null, fix: k.fix || '', tag: k.tag || 1, aktiv: true, u: t }));
+      else if (vorlage !== 'leerplan') {
+        const [quelle, nurPlan] = vorlage.split('|');
+        const qd = (A.info[quelle] || {}).daten;
+        konten = (qd ? qd.konten : []).filter(k => k.aktiv !== false).map(k => ({ ...k, id: kid(), jahre: nurPlan ? {} : { ...(k.jahre || {}) }, fixBetrag: nurPlan ? null : (k.fixBetrag ?? null), u: t }));
+      }
+      const daten = { version: 2, start: heute().slice(0, 7), konten, buchungen: [], geloescht: {}, u: t };
+      await schreibeDatei(r.full_name, 'data.json', JSON.stringify(daten, null, 1), 'Neue Buchhaltung angelegt (Admin-Center)');
+      await schreibeDatei(r.full_name, 'README.md', `# Buchhaltung ${name}\n\nPrivate Daten der Budget-App (${APP_URL}).\n\n- \`data.json\`: Kontoplan, Jahresbudget, Buchungen (von der App verwaltet)\n- \`belege/\`: Belegfotos\n- \`protokoll/\`: Änderungsprotokoll\n- \`admin/personen.json\`: eingeladene Personen (ohne Schlüssel)\n`, 'README');
+      await schreibeDatei(r.full_name, 'admin/personen.json', '[]', 'Personenliste');
+      const neu = { name: r.name, full: r.full_name, privat: r.private, url: r.html_url, pushed: new Date().toISOString() };
+      A.repos.push(neu); await ladeInfo(neu);
+      toast(`${repoName} angelegt ✓`);
+      A.tab = 'uebersicht'; render();
+      einladenSheet(r.full_name);
+    } catch (e) { toast(e.message); }
+  },
+  einladen: full => einladenSheet(full),
+  details: full => detailsSheet(full)
+};
+
+function einladenSheet(full) {
+  const r = repoVon(full), anzeige = anzeigeName(r.name);
+  sheet(`<h2>Person einladen: ${esc(anzeige)}</h2>
+    <label for="pName">Name der Person (erscheint im Protokoll)</label><input id="pName" placeholder="z. B. Toni" autocomplete="off">
+    <label for="pTage">Zugang gültig</label><select id="pTage"><option value="90">3 Monate</option><option value="180">6 Monate</option><option value="366" selected>1 Jahr (maximal)</option></select>
+    <h3 style="margin-top:16px">1. Schlüssel auf GitHub erstellen</h3>
+    <button class="btn sec" id="ghOpen">GitHub-Seite öffnen ↗</button>
+    <ol class="schritte muted">
+      <li><b>Token name</b>: steht schon da (sonst z. B. „Budget ${esc(anzeige)} – Name“)</li>
+      <li><b>Expiration</b>: wie oben gewählt</li>
+      <li><b>Repository access</b> → <b>Only select repositories</b> → <b>${esc(r.name)}</b></li>
+      <li><b>Permissions</b> → <b>Contents</b> → <b>Read and write</b></li>
+      <li>Unten <b>Generate token</b>, Schlüssel kopieren</li>
+    </ol>
+    <h3>2. Schlüssel hier einfügen</h3>
+    <input id="pToken" type="password" placeholder="github_pat_…" autocomplete="off">
+    <div class="btns" style="margin-top:12px"><button class="btn" id="mk">Einladungslink erstellen</button><button class="btn sec" id="cx">Abbrechen</button></div>
+    <div id="erg"></div>`, (root, close) => {
+    const nameIn = root.querySelector('#pName');
+    root.querySelector('#cx').onclick = close;
+    root.querySelector('#ghOpen').onclick = () => {
+      const p = nameIn.value.trim() || 'Person', tage = root.querySelector('#pTage').value;
+      const q = new URLSearchParams({ name: `Budget ${anzeige} - ${p}`.slice(0, 40), description: `Budget-App Zugang für ${p} zur Buchhaltung ${anzeige}`, target_name: A.login, expires_in: tage, contents: 'write' });
+      window.open('https://github.com/settings/personal-access-tokens/new?' + q, '_blank', 'noopener');
+    };
+    root.querySelector('#mk').onclick = async () => {
+      const person = nameIn.value.trim(), token = root.querySelector('#pToken').value.trim();
+      if (!person) return toast('Bitte den Namen der Person eingeben.');
+      if (!/^(github_pat_|ghp_)/.test(token)) return toast('Bitte den Schlüssel von GitHub einfügen.');
+      const erg = root.querySelector('#erg'); erg.innerHTML = '<p class="muted">Schlüssel wird geprüft…</p>';
+      try {
+        // Prüfen: kann der Schlüssel diese Buchhaltung lesen, aber nicht alles andere?
+        await gh(`/repos/${full}/contents/data.json`, {}, token);
+        const andere = A.repos.find(x => x.full !== full);
+        if (andere && await gh(`/repos/${andere.full}/contents/data.json`, { ok404: true }, token).catch(() => null))
+          if (!confirm('Achtung: Dieser Schlüssel hat auch Zugriff auf andere Buchhaltungen. Trotzdem verwenden?')) { erg.innerHTML = ''; return; }
+      } catch (e) { erg.innerHTML = `<p class="neg">Der Schlüssel funktioniert für ${esc(r.name)} nicht: ${esc(e.message)}. Prüfe „Only select repositories“ und „Contents: Read and write“.</p>`; return; }
+      const tage = +root.querySelector('#pTage').value, ab = new Date(); ab.setDate(ab.getDate() + tage);
+      const link = APP_URL + '#einladung=' + b64url(JSON.stringify({ n: anzeige, r: full, t: token, p: person }));
+      // Person ohne Schlüssel in admin/personen.json festhalten
+      try {
+        const alt = await leseDatei(full, 'admin/personen.json');
+        const liste = alt ? JSON.parse(alt.text) : [];
+        liste.push({ id: uid(), name: person, schluessel: `Budget ${anzeige} - ${person}`, erstellt: heute(), ablauf: ab.toISOString().slice(0, 10), gesperrt: false });
+        await schreibeDatei(full, 'admin/personen.json', JSON.stringify(liste, null, 1), `Person eingeladen: ${person}`, alt && alt.sha);
+        A.info[full].personen = liste;
+      } catch (e) { toast('Person konnte nicht in der Liste gespeichert werden: ' + e.message); }
+      let qrSvg = '';
+      try { const qr = qrcode(0, 'M'); qr.addData(link); qr.make(); qrSvg = qr.createSvgTag({ cellSize: 4, margin: 2, scalable: true }); } catch { qrSvg = '<p class="muted">QR-Code zu lang, bitte den Link verwenden.</p>'; }
+      erg.innerHTML = `<h3 style="margin-top:16px">3. Link oder QR-Code an ${esc(person)} geben</h3>
+        <div class="qr">${qrSvg}</div><div class="link" id="lk">${esc(link)}</div>
+        <div class="btns" style="margin-top:8px"><button class="btn" id="cp">Link kopieren</button>${navigator.share ? '<button class="btn sec" id="sh">Teilen…</button>' : ''}<button class="btn sec" id="fertig">Fertig</button></div>
+        <p class="muted">⚠ Der Link enthält den Schlüssel. Nur privat weitergeben (persönlich, SMS oder WhatsApp direkt an die Person), nicht in Gruppen. ${esc(person)} öffnet ihn am Handy in Chrome oder Safari, bestätigt und fügt die App zum Startbildschirm hinzu.</p>`;
+      erg.querySelector('#cp').onclick = async () => { try { await navigator.clipboard.writeText(link); toast('Link kopiert ✓'); } catch { toast('Bitte den Link markieren und kopieren.'); } };
+      const sh = erg.querySelector('#sh'); if (sh) sh.onclick = () => navigator.share({ title: 'Budget-App', text: `Deine Buchhaltung ${anzeige}`, url: link }).catch(() => {});
+      erg.querySelector('#fertig').onclick = close;
+      root.querySelector('#mk').remove(); render();
+    };
+  });
+}
+
+function detailsSheet(full) {
+  const r = repoVon(full), inf = A.info[full] || {}, y = heute().slice(0, 4), z = kennzahlen(inf.daten, y);
+  const zeilen = typ => Object.values(z.konten).filter(x => x.k.typ === typ && (x.bud || x.ist)).sort((a, b) => String(a.k.nr).localeCompare(String(b.k.nr), 'de', { numeric: true }))
+    .map(x => `<tr><td>${esc(x.k.name)}</td><td class="n">${chf0(x.bud)}</td><td class="n">${chf0(x.ist)}</td><td class="n">${x.bud ? Math.round(x.ist / x.bud * 100) + '%' : '–'}</td></tr>`).join('');
+  const kmap = {}; ((inf.daten || {}).konten || []).forEach(k => kmap[k.id] = k);
+  const letzte = ((inf.daten || {}).buchungen || []).slice().sort((a, b) => (b.u || 0) - (a.u || 0)).slice(0, 15)
+    .map(b => `<tr><td class="klein">${fmtDate(b.datum)}</td><td>${esc(b.text || (kmap[b.kontoId] || {}).name || '')}${b.beleg ? ' 📎' : ''}<div class="klein">${esc((kmap[b.kontoId] || {}).name || '')}</div></td><td class="klein">${esc(b.von || '')}</td><td class="n">${chf(b.betrag)}</td></tr>`).join('');
+  const pers = (inf.personen || []).map(p => { const [c, t] = ablaufStatus(p); return `<li><div class="grow"><b>${esc(p.name)}</b> <span class="pill ${c}">${esc(t || 'aktiv')}</span><div class="muted">Schlüssel „${esc(p.schluessel)}“ · eingeladen ${fmtDate(p.erstellt)}</div></div>
+    ${p.gesperrt ? '' : `<button class="btn danger sm" data-sperr="${esc(p.id)}">Sperren</button>`}</li>`; }).join('');
+  sheet(`<h2>${esc(anzeigeName(r.name))}</h2><p class="muted"><a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(full)}</a> · <a href="${esc(r.url)}/commits" target="_blank" rel="noopener">GitHub-Historie</a> · <a href="${esc(r.url)}/tree/main/belege" target="_blank" rel="noopener">Belege</a></p>
+    <h3>Personen</h3><ul class="list">${pers || '<li class="muted">Noch niemand eingeladen.</li>'}</ul>
+    <h3 style="margin-top:14px">Ausgaben ${y}</h3><div class="tablewrap"><table><tr><th>Konto</th><th class="n">Budget</th><th class="n">Ist</th><th class="n">%</th></tr>${zeilen('A') || '<tr><td colspan="4" class="muted">–</td></tr>'}
+    <tr class="sum"><td>Total</td><td class="n">${chf0(z.budA)}</td><td class="n">${chf0(z.istA)}</td><td class="n">${z.budA ? Math.round(z.istA / z.budA * 100) + '%' : '–'}</td></tr></table></div>
+    <h3 style="margin-top:14px">Einnahmen ${y}</h3><div class="tablewrap"><table><tr><th>Konto</th><th class="n">Budget</th><th class="n">Ist</th><th class="n">%</th></tr>${zeilen('E') || '<tr><td colspan="4" class="muted">–</td></tr>'}
+    <tr class="sum"><td>Total</td><td class="n">${chf0(z.budE)}</td><td class="n">${chf0(z.istE)}</td><td class="n">${z.budE ? Math.round(z.istE / z.budE * 100) + '%' : '–'}</td></tr></table></div>
+    <h3 style="margin-top:14px">Letzte Buchungen</h3><div class="tablewrap"><table>${letzte || '<tr><td class="muted">Keine Buchungen.</td></tr>'}</table></div>
+    <div class="btns" style="margin-top:16px"><button class="btn" id="cx">Schliessen</button></div>`, (root, close) => {
+    root.querySelector('#cx').onclick = close;
+    root.querySelectorAll('[data-sperr]').forEach(b => b.onclick = async () => {
+      const p = inf.personen.find(x => x.id === b.dataset.sperr);
+      if (!confirm(`Zugang von ${p.name} sperren?\n\nWichtig: Auf der nächsten Seite den Schlüssel „${p.schluessel}“ mit „Delete“ löschen. Erst dann ist der Zugang wirklich weg.`)) return;
+      window.open('https://github.com/settings/personal-access-tokens', '_blank', 'noopener');
+      try {
+        const alt = await leseDatei(full, 'admin/personen.json'); const liste = JSON.parse(alt.text);
+        const e = liste.find(x => x.id === p.id); if (e) { e.gesperrt = true; e.gesperrtAm = heute(); }
+        await schreibeDatei(full, 'admin/personen.json', JSON.stringify(liste, null, 1), `Zugang gesperrt: ${p.name}`, alt.sha);
+        inf.personen = liste; close(); render(); toast(`${p.name} als gesperrt markiert. Schlüssel auf GitHub löschen!`);
+      } catch (e) { toast(e.message); }
+    });
+  });
+}
+
+/* ---------- Hilfen ---------- */
+let toastT;
+function toast(t) { const el = document.getElementById('toast'); el.textContent = t; el.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => el.classList.remove('show'), 4000); }
+
+document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => { A.tab = b.dataset.tab; render(); });
+document.getElementById('reload').onclick = () => { A.protokoll = null; ladeAlles(); };
+render();
+ladeAlles();
+
+</script>
+</body>
+</html>

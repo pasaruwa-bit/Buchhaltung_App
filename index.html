@@ -747,7 +747,7 @@ const HILFE = [
 function zeigeVideo(id) {
   const h = HILFE.find(x => x[0] === id); if (!h) return;
   const basis = location.protocol === 'file:' ? 'https://pasaruwa-bit.github.io/Buchhaltung_App/' : '';
-  sheet(`<h2>${esc(h[1])}</h2><video src="${basis}hilfe/${id}.webm" controls autoplay playsinline preload="auto" style="width:100%;max-height:70vh;border-radius:10px;background:#000"></video>
+  sheet(`<h2>${esc(h[1])}</h2><video src="${basis}hilfe/${id}.webm?v=15" controls autoplay playsinline preload="auto" style="width:100%;max-height:70vh;border-radius:10px;background:#000"></video>
     <p class="muted">Mit Ton (Lautstärke am Handy einschalten). Mit ❚❚ anhalten, mit dem Balken zurückspulen.</p><div class="btns"><button class="btn" id="cx">Schliessen</button></div>`,
     (root, close) => root.querySelector('#cx').onclick = close);
 }

@@ -801,8 +801,20 @@ function merge(lokal, remote) {
     for (const x of [...b, ...a]) { const y = map.get(x.id); if (!y || (x.u || 0) >= (y.u || 0)) map.set(x.id, x); }
     return [...map.values()].filter(x => !geloescht[x.id]);
   };
+  const konten = mergeArr(lokal.konten, remote.konten), buchungen = mergeArr(lokal.buchungen, remote.buchungen);
+  // Gleiche Konten (Typ + Nummer + Name) mit verschiedenen IDs zusammenführen, z. B. wenn ein Gerät mit
+  // eigener Vorlage gestartet ist. Behalten wird das Konto mit Budget, die Buchungen werden umgehängt.
+  const gruppen = new Map();
+  for (const k of konten) { const key = `${k.typ}|${String(k.nr).trim()}|${String(k.name).trim().toLowerCase()}`; (gruppen.get(key) || gruppen.set(key, []).get(key)).push(k); }
+  const ersetzt = {};
+  for (const g of gruppen.values()) {
+    if (g.length < 2) continue;
+    g.sort((a, b) => (Object.keys(b.jahre || {}).length - Object.keys(a.jahre || {}).length) || ((b.fixBetrag ? 1 : 0) - (a.fixBetrag ? 1 : 0)) || ((b.u || 0) - (a.u || 0)));
+    for (const k of g.slice(1)) { ersetzt[k.id] = g[0].id; geloescht[k.id] = now(); }
+  }
+  for (const b of buchungen) { if (ersetzt[b.kontoId]) { b.kontoId = ersetzt[b.kontoId]; b.u = now(); } if (ersetzt[b.fixKonto]) b.fixKonto = ersetzt[b.fixKonto]; }
   return { version: 2, start: [lokal.start, remote.start].filter(Boolean).sort()[0] || ymNow(),
-    konten: mergeArr(lokal.konten, remote.konten), buchungen: mergeArr(lokal.buchungen, remote.buchungen), geloescht, u: now() };
+    konten: konten.filter(k => !ersetzt[k.id]), buchungen, geloescht, u: now() };
 }
 let syncTimer = null;
 function planeSync() { clearTimeout(syncTimer); syncTimer = setTimeout(() => sync(false), 3000); }

@@ -1135,22 +1135,36 @@ function leseBeleg(text) {
   const totalRe = /(total|summe|zu\s*zahlen|zahlbetrag|endbetrag|gesamt|betrag\s*chf|rechnungsbetrag)/i;
   const ausRe = /(mwst|mws|ust|rückgeld|ruckgeld|retour|zurück|rabatt|gegeben|satz|netto|%)/i;
   const kand = [];
+  const chfRe = /chf|sfr|\bfr\b\.?|fr\./i, eurRe = /eur|€/i;
   zeilen.forEach((z, i) => {
     for (const m of z.matchAll(betragRe)) {
       const v = parseFloat(m[1].replace(/['’`´ ]/g, '') + '.' + m[2]);
-      if (v > 0 && v < 100000) kand.push({ v, i, total: totalRe.test(z) && !ausRe.test(z), aus: ausRe.test(z), chf: /chf|fr\.|sfr/i.test(z) });
+      if (!(v > 0 && v < 100000)) continue;
+      // Währung pro Betrag: letzte Angabe davor in der Zeile, sonst die erste danach
+      const vor = z.slice(0, m.index), nach = z.slice(m.index + m[0].length);
+      const letzte = re => { let x = -1; for (const t of vor.matchAll(re)) x = t.index; return x; };
+      const lc = letzte(/chf|sfr|\bfr\b/gi), le = letzte(/eur|€/gi);
+      let cur = lc > le ? 'chf' : le > lc ? 'eur' : (chfRe.test(nach.slice(0, 6)) ? 'chf' : eurRe.test(nach.slice(0, 6)) ? 'eur' : '');
+      if (!cur && eurRe.test(z) && !chfRe.test(z)) cur = 'eur';
+      if (!cur && chfRe.test(z) && !eurRe.test(z)) cur = 'chf';
+      const total = totalRe.test(z), eur = cur === 'eur', chf = cur === 'chf';
+      // "Total CHF inkl. MWST" ist der richtige Betrag, MWST-Zeilen mit Prozent oder Satz dagegen nicht
+      const aus = ausRe.test(z) && !(total && chf && !/%|satz/i.test(z));
+      kand.push({ v, i, total: total && !aus, aus, chf, eur });
     }
   });
   let betrag = null;
   const pick = l => l.length ? Math.max(...l.map(k => k.v)) : null;
-  betrag = pick(kand.filter(k => k.total));
+  // 1. Total in CHF/Fr. hat immer Vorrang, Euro-Beträge werden nie genommen
+  betrag = pick(kand.filter(k => k.total && k.chf));
+  if (betrag == null) betrag = pick(kand.filter(k => k.total && !k.eur));
   if (betrag == null) {
     // Betrag direkt in der Zeile nach "Total" (bei zweispaltigen Kassenzetteln)
-    const ti = zeilen.findIndex(z => totalRe.test(z) && !ausRe.test(z));
-    if (ti >= 0) betrag = pick(kand.filter(k => k.i === ti + 1 && !k.aus));
+    const ti = zeilen.findIndex(z => totalRe.test(z) && !ausRe.test(z) && !eurRe.test(z));
+    if (ti >= 0) betrag = pick(kand.filter(k => k.i === ti + 1 && !k.aus && !k.eur));
   }
   if (betrag == null) betrag = pick(kand.filter(k => k.chf && !k.aus));
-  if (betrag == null) betrag = pick(kand.filter(k => !k.aus));
+  if (betrag == null) betrag = pick(kand.filter(k => !k.aus && !k.eur));
 
   let datum = null;
   const heute = todayISO();

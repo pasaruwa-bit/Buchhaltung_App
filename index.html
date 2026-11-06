@@ -131,6 +131,12 @@ a.btn { text-decoration: none; display: inline-block; }
 .cropbox i[data-e=nw] { left: -13px; top: -13px; cursor: nwse-resize; } .cropbox i[data-e=ne] { right: -13px; top: -13px; cursor: nesw-resize; }
 .cropbox i[data-e=sw] { left: -13px; bottom: -13px; cursor: nesw-resize; } .cropbox i[data-e=se] { right: -13px; bottom: -13px; cursor: nwse-resize; }
 .crop { overflow: hidden; border-radius: 8px; }
+.teilbox { margin-top: 12px; padding: 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); }
+.teilbox h3 { margin: 0 0 4px; }
+.teil { display: grid; grid-template-columns: 1fr 90px auto; gap: 6px; align-items: center; margin: 6px 0; }
+.teil select, .teil input { margin: 0; }
+.teil .tT { grid-column: 1 / -1; font-size: 12px; margin-top: -2px; }
+.frage { margin-top: 10px; padding: 10px; border-radius: 10px; background: #fff3d6; color: #5a4300; }
 
 </style>
 </head>
@@ -404,19 +410,33 @@ function sollAnteil(y) {
 function buchungLi(b) {
   const k = konto(b.kontoId) || { name: '(Konto gelöscht)', typ: 'A' };
   return `<li class="click" data-act="edit:${b.id}"><div class="grow"><div class="t">${esc(b.text || k.name)}</div>
-    <div class="muted">${b.beleg ? '📎 ' : ''}${fmtDate(b.datum)} · ${esc(k.name)}${b.von ? ' · ' + esc(b.von) : ''}</div></div>
+    <div class="muted">${b.beleg ? '📎 ' : ''}${b.gruppe ? '⇄ ' : ''}${fmtDate(b.datum)} · ${esc(k.name)}${b.von ? ' · ' + esc(b.von) : ''}</div></div>
     <span class="num ${k.typ === 'E' ? 'pos' : ''}">${k.typ === 'E' ? '+' : '−'}${chf(b.betrag)}</span></li>`;
 }
 
 function vBuchungen() {
-  let list = buchungenIm(S.ym);
-  if (S.filterKonto) list = list.filter(b => b.kontoId === S.filterKonto);
-  list.sort((a, b) => b.datum.localeCompare(a.datum) || b.u - a.u);
+  setTimeout(() => {
+    const i = document.getElementById('suche'); if (!i) return;
+    i.oninput = () => { S.suche = i.value; const l = document.getElementById('bListe'); l.innerHTML = buchungsListe(); bind(l); };
+  }, 0);
   const opts = [...kontenTyp('A'), ...kontenTyp('E')].map(k => `<option value="${k.id}" ${S.filterKonto === k.id ? 'selected' : ''}>${esc(k.nr)} ${esc(k.name)}</option>`).join('');
+  return `<div class="card"><label for="suche">Suchen (alle Monate)</label><input id="suche" type="search" autocomplete="off" placeholder="Text, Konto oder Betrag" value="${esc(S.suche || '')}">
+    <label>Konto filtern</label><select data-act="filter"><option value="">Alle Konten</option>${opts}</select></div>
+    <div class="card" id="bListe">${buchungsListe()}</div>`;
+}
+function buchungsListe() {
+  const q = (S.suche || '').trim().toLowerCase();
+  let list = q ? S.data.buchungen.slice() : buchungenIm(S.ym);
+  if (S.filterKonto) list = list.filter(b => b.kontoId === S.filterKonto);
+  if (q) {
+    const qb = parseBetrag(q);
+    list = list.filter(b => { const k = konto(b.kontoId) || {};
+      return (b.text || '').toLowerCase().includes(q) || (k.name || '').toLowerCase().includes(q) || String(k.nr) === q || (qb != null && Math.abs(b.betrag - qb) < 0.005); });
+  }
+  list.sort((a, b) => b.datum.localeCompare(a.datum) || b.u - a.u);
   const sum = list.reduce((s, b) => { const k = konto(b.kontoId); return s + (k && k.typ === 'E' ? b.betrag : -b.betrag); }, 0);
-  return `<div class="card"><label>Konto filtern</label><select data-act="filter"><option value="">Alle Konten</option>${opts}</select></div>
-    <div class="card"><div class="row"><h2>${list.length} Buchungen</h2><span class="num muted">Saldo ${chf(sum)}</span></div>
-    ${list.length ? `<ul class="list">${list.map(buchungLi).join('')}</ul>` : `<div class="empty">Keine Buchungen.</div>`}</div>`;
+  return `<div class="row"><h2>${list.length} ${list.length === 1 ? 'Buchung' : 'Buchungen'}${q ? ' gefunden' : ''}</h2><span class="num muted">Saldo ${chf(sum)}</span></div>
+    ${list.length ? `<ul class="list">${list.map(buchungLi).join('')}</ul>` : `<div class="empty">${q ? 'Nichts gefunden.' : 'Keine Buchungen.'}</div>`}`;
 }
 
 function formBuchung(b) {
@@ -442,8 +462,13 @@ function bindTypSeg(root, b) {
     const vals = { betrag: root.querySelector('#fBetrag').value, datum: root.querySelector('#fDatum').value, text: root.querySelector('#fText').value };
     const holder = root.querySelector('#fHolder');
     holder.innerHTML = formBuchung({ ...b, ...vals, _typ: btn.dataset.typ, kontoId: '' });
+    const t = root.querySelector('#teile'); if (t) t.innerHTML = '';
     bindTypSeg(root, b);
   });
+  if (!b.id) {
+    const fT = root.querySelector('#fText');
+    fT.onchange = () => { const typ = root.querySelector('#fTyp button.on')?.dataset.typ || 'A'; const kId = vorschlagKonto(fT.value, typ); if (kId) root.querySelector('#fKonto').value = kId; };
+  }
 }
 function belegBoxHtml() {
   return `<div class="belegbox"><div class="btns"><label class="btn sec" for="fFoto">📷 Beleg fotografieren</label><label class="btn sec" for="fDatei">🖼 Bild wählen</label></div>
@@ -453,8 +478,13 @@ function belegBoxHtml() {
 function vNeu() {
   const datum = S.ym === ymNow() ? todayISO() : S.ym + '-01';
   S.formBeleg = null;
-  setTimeout(() => { const root = document.getElementById('view'); bindTypSeg(root, { datum }); bindBeleg(root); }, 0);
+  setTimeout(() => {
+    const root = document.getElementById('view'); bindTypSeg(root, { datum }); bindBeleg(root);
+    root.querySelector('#aufteilen').onclick = () => teileZeigen(root, []);
+    root.addEventListener('input', e => { if (e.target.id === 'fBetrag' || e.target.classList.contains('tB')) teileRest(root); });
+  }, 0);
   return `<div class="card"><h2>Neue Buchung</h2>${belegBoxHtml()}<div id="fHolder">${formBuchung({ datum, _typ: 'A' })}</div>
+    <div id="teile"></div><button type="button" class="btn sec sm" id="aufteilen" style="margin-top:10px">⇄ Auf mehrere Konten aufteilen</button>
     <div style="margin-top:16px"><button class="btn full" data-act="neuSpeichern">Speichern</button></div>
     <p class="muted" style="margin-top:12px">Tipp: Beleg flach hinlegen, gut beleuchten und das ganze Papier ins Bild nehmen. Betrag, Datum und Geschäft werden vorgeschlagen, bitte immer kurz prüfen.</p></div>`;
 }
@@ -595,6 +625,7 @@ function neueBuchung(f, extra = {}) {
   S.data.buchungen.push(b);
   protokoll('neu', logBuchung(b, { betrag_neu: b.betrag }));
   speichere();
+  return b;
 }
 const AKT = {
   tab: t => zeige(t),
@@ -603,17 +634,30 @@ const AKT = {
   gotoMonat: ym => { S.ym = ym; S.auswertung = 'monat'; render(); },
   kontoBuch: id => { S.filterKonto = id; zeige('buchungen'); },
   neuSpeichern: async () => {
-    const f = leseForm(document.getElementById('view')); if (!f) return;
+    const root = document.getElementById('view');
+    const f = leseForm(root); if (!f) return;
+    const teile = teileLesen(root); if (!teile) return;
+    const summeT = Math.round(teile.reduce((s, t) => s + t.betrag, 0) * 100) / 100;
+    if (summeT > f.betrag + 0.005) { toast('Die Teile sind zusammen grösser als der Gesamtbetrag.'); return; }
+    const d = aehnlicheBuchung(f);
+    if (d && !confirm(`Möglicherweise schon erfasst:\n${fmtDate(d.datum)} · ${d.text || (konto(d.kontoId) || {}).name || ''} · ${chf(d.betrag)} CHF\n\nTrotzdem speichern?`)) return;
     const extra = {};
     if (S.formBeleg) { try { extra.beleg = await speichereBeleg(S.formBeleg, f.datum); } catch (e) { toast('Beleg konnte nicht gespeichert werden: ' + e.message); return; } }
     S.formBeleg = null;
-    neueBuchung(f, extra); S.ym = ymOf(f.datum); toast('Gespeichert ✓'); zeige('start');
+    if (teile.length) {
+      extra.gruppe = uid();
+      const h = neueBuchung({ ...f, betrag: Math.round((f.betrag - summeT) * 100) / 100 }, extra);
+      for (const t of teile) neueBuchung({ betrag: t.betrag, datum: f.datum, kontoId: t.kontoId, text: [f.text, t.text].filter(Boolean).join(': ') || 'Teil' }, { ...extra, teilVon: h.id });
+      toast(`Gespeichert ✓ (aufgeteilt auf ${teile.length + 1} Buchungen)`);
+    } else { neueBuchung(f, extra); toast('Gespeichert ✓'); }
+    S.ym = ymOf(f.datum); zeige('start');
   },
   edit: id => {
     const b = S.data.buchungen.find(x => x.id === id); if (!b) return;
     S.formBeleg = null;
     sheet(`<h2>Buchung bearbeiten</h2>${belegBoxHtml()}<div id="fHolder">${formBuchung(b)}</div>
       ${b.fixMonat ? `<p class="muted">Fester Posten ${esc(ymLabel(b.fixMonat))}</p>` : ''}
+      ${b.gruppe ? `<p class="muted">⇄ Teil eines aufgeteilten Belegs. Die anderen Teile bleiben beim Ändern unverändert.</p>` : ''}
       ${b.von ? `<p class="muted">Erfasst von ${esc(b.von)}</p>` : ''}
       <div class="btns" style="margin-top:16px"><button class="btn" id="sv">Speichern</button><button class="btn sec" id="cx">Abbrechen</button><button class="btn danger" id="dl">Löschen</button></div>`,
       (root, close) => {
@@ -1084,7 +1128,7 @@ function leseBeleg(text) {
     else continue;
     if (d >= 1 && d <= 31 && mo >= 1 && mo <= 12 && y >= 2000) { const iso = `${y}-${pad(mo)}-${pad(d)}`; if (iso <= heute) { datum = iso; break; } }
   }
-  const g = zeilen.slice(0, 6).find(z => /[A-Za-zÄÖÜäöüéè]{3,}/.test(z) && !/quittung|beleg|kassenbon|rechnung|willkommen|herzlich|kasse|filiale/i.test(z));
+  const g = zeilen.slice(0, 6).map(z => z.replace(/(?<=[A-Za-z])0|0(?=[A-Za-z])/g, 'o')).find(z => /[A-Za-zÄÖÜäöüéè]{3,}/.test(z) && !/quittung|beleg|kassenbon|rechnung|willkommen|herzlich|kasse|filiale/i.test(z));
   const geschaeft = g ? g.replace(/[^\wÄÖÜäöüéèàç&.' -]/g, '').replace(/\s+/g, ' ').trim().slice(0, 40) : '';
   return { betrag, datum, geschaeft };
 }
@@ -1098,13 +1142,101 @@ const KONTO_HINWEISE = [
   [/swisscom|sunrise|salt|internet|mobile/i, /telefon/i],
   [/fitness|gym|migros fitness|update/i, /fitness/i]
 ];
+const normText = t => (t || '').toLowerCase().replace(/[^a-zäöüéèàç ]/g, ' ').replace(/\s+/g, ' ').trim();
+// Konto vorschlagen: zuerst wie das letzte Mal beim gleichen Geschäft (die App lernt mit), sonst über Stichwörter
 function vorschlagKonto(text, typ) {
-  if (!text) return null;
-  const wort = text.toLowerCase().split(/\s+/)[0];
-  const frueher = S.data.buchungen.filter(b => (b.text || '').toLowerCase().startsWith(wort) && konto(b.kontoId) && konto(b.kontoId).typ === typ).sort((a, b) => b.u - a.u)[0];
-  if (frueher) return frueher.kontoId;
+  const n = normText(text); if (!n) return null;
+  const wort = n.split(' ')[0];
+  const frueher = S.data.buchungen.filter(b => !b.teilVon && !b.fixKonto && konto(b.kontoId) && konto(b.kontoId).typ === typ && konto(b.kontoId).aktiv !== false).sort((a, b) => b.u - a.u);
+  const treffer = frueher.find(b => normText(b.text) === n) || (wort.length >= 3 && frueher.find(b => normText(b.text).split(' ')[0] === wort));
+  if (treffer) return treffer.kontoId;
+  return hinweisKonto(text, typ);
+}
+function hinweisKonto(text, typ) {
+  text = text + ' ' + text.replace(/0/g, 'o'); // Texterkennung liest o oft als 0 (Co0p)
   for (const [re, kre] of KONTO_HINWEISE) if (re.test(text)) { const k = kontenTyp(typ).find(k => kre.test(k.name)); if (k) return k.id; }
   return null;
+}
+// Gleicher Betrag am gleichen Tag (aufgeteilte Belege als Ganzes) = vermutlich doppelt erfasst
+function aehnlicheBuchung(f) {
+  const typ = (konto(f.kontoId) || {}).typ, g = {};
+  for (const x of S.data.buchungen) {
+    if ((konto(x.kontoId) || {}).typ !== typ) continue;
+    const key = x.gruppe || x.id;
+    const e = g[key] || (g[key] = { datum: x.datum, betrag: 0, text: x.text, kontoId: x.kontoId });
+    e.betrag += x.betrag; if (!x.teilVon) { e.text = x.text; e.kontoId = x.kontoId; }
+  }
+  return Object.values(g).find(x => x.betrag > 0 && x.datum === f.datum && Math.abs(x.betrag - f.betrag) < 0.005) || null;
+}
+// Einzelne Posten auf dem Kassenzettel, die vermutlich zu einem anderen Konto gehören
+const POSTEN_HINWEISE = [
+  [/blume|strauss|rose|tulpe|orchidee|topfpflanze|geschenk|gutschein|glückwunsch/i, /geschenk/i],
+  [/benzin|diesel|bleifrei|super ?9[58]/i, /benzin/i],
+  [/medikament|tablette|pflaster|aspirin|dafalgan|ibuprofen|dragée/i, /arzt/i],
+  [/billett|tageskarte|halbtax|ga travel/i, /sbb|öv/i],
+  [/zeitschrift|zeitung|roman|kinoticket|konzert/i, /kultur/i],
+  [/pfanne|kochtopf|kissen|lampe|kleid|hose|t-?shirt|socken|schuh|jacke|pullover|handtuch|kabel|batterie/i, /anschaff/i]
+];
+function postenErkennen(text, hauptId) {
+  const res = [];
+  for (const z of String(text).split(/\r?\n/)) {
+    if (/(total|summe|mwst|rabatt|zu zahlen|rückgeld|twint|kartenzahlung)/i.test(z)) continue;
+    const m = [...z.matchAll(/(\d{1,4})\s?[.,]\s?(\d{2})(?![\d%])/g)].pop(); if (!m) continue;
+    const v = parseFloat(m[1] + '.' + m[2]); if (!(v > 0)) continue;
+    for (const [re, kre] of POSTEN_HINWEISE) if (re.test(z)) {
+      const k = kontenTyp('A').find(k => kre.test(k.name));
+      if (k && k.id !== hauptId) res.push({ kontoId: k.id, betrag: v, text: z.slice(0, m.index).replace(/[^\wÄÖÜäöüéèàç .-]/g, '').replace(/\s+/g, ' ').trim().slice(0, 30) });
+      break;
+    }
+  }
+  return res;
+}
+/* ---------- Aufteilen ---------- */
+function teilZeile(t = {}) {
+  const typ = document.querySelector('#fTyp button.on')?.dataset.typ || 'A';
+  const opts = kontenTyp(typ).map(k => `<option value="${k.id}" ${t.kontoId === k.id ? 'selected' : ''}>${esc(k.nr)} ${esc(k.name)}</option>`).join('');
+  return `<div class="teil" data-text="${esc(t.text || '')}"><select class="tK" aria-label="Konto">${t.kontoId ? '' : '<option value="">Konto wählen…</option>'}${opts}</select>
+    <input class="tB" inputmode="decimal" autocomplete="off" placeholder="0.00" aria-label="Betrag" value="${t.betrag != null ? t.betrag.toFixed(2) : ''}">
+    <button type="button" class="btn sec sm tX" title="Teil entfernen">✕</button>${t.text ? `<div class="muted tT">${esc(t.text)}</div>` : ''}</div>`;
+}
+function teileZeigen(root, teile) {
+  const box = root.querySelector('#teile');
+  if (!box.querySelector('.teil')) box.innerHTML = `<div class="teilbox"><h3>Aufteilen</h3><p class="muted">Beträge für andere Konten eintragen. Der Rest bleibt auf dem Konto oben.</p>
+    <div class="teilListe"></div><button type="button" class="btn sec sm" id="teilPlus">+ Weiterer Teil</button>
+    <div class="row" style="margin-top:10px"><span>Rest auf Konto oben</span><b class="num" id="teilRest"></b></div></div>`;
+  const liste = box.querySelector('.teilListe');
+  liste.insertAdjacentHTML('beforeend', (teile.length ? teile : [{}]).map(teilZeile).join(''));
+  box.querySelector('#teilPlus').onclick = () => { liste.insertAdjacentHTML('beforeend', teilZeile()); teileRest(root); };
+  liste.onclick = e => { const x = e.target.closest('.tX'); if (!x) return; x.closest('.teil').remove(); if (!liste.querySelector('.teil')) box.innerHTML = ''; else teileRest(root); };
+  root.querySelector('#aufteilen').hidden = true;
+  teileRest(root);
+}
+function teileRest(root) {
+  const el = root.querySelector('#teilRest'); if (!el) { const a = root.querySelector('#aufteilen'); if (a) a.hidden = false; return; }
+  const total = parseBetrag(root.querySelector('#fBetrag').value) || 0;
+  const sum = [...root.querySelectorAll('.tB')].reduce((s, i) => s + (parseBetrag(i.value) || 0), 0);
+  const rest = Math.round((total - sum) * 100) / 100;
+  el.textContent = chf(rest) + ' CHF'; el.className = 'num ' + (rest < 0 ? 'neg' : '');
+}
+// null = Fehler (Meldung schon gezeigt); [] = nicht aufgeteilt
+function teileLesen(root) {
+  const res = [];
+  for (const z of root.querySelectorAll('.teil')) {
+    const b = parseBetrag(z.querySelector('.tB').value), k = z.querySelector('.tK').value;
+    if (b == null || b === 0) continue;
+    if (b < 0) { toast('Teilbeträge dürfen nicht negativ sein.'); return null; }
+    if (!k) { toast('Bitte bei jedem Teil ein Konto wählen.'); return null; }
+    res.push({ kontoId: k, betrag: b, text: z.dataset.text || '' });
+  }
+  return res;
+}
+function frageAufteilen(root, vt) {
+  const st = root.querySelector('#belegStatus'); if (!st || !root.querySelector('#teile')) return;
+  const liste = vt.map(t => `${esc(t.text || 'Posten')} ${chf(t.betrag)} → ${esc((konto(t.kontoId) || {}).name || '')}`).join(', ');
+  st.insertAdjacentHTML('beforeend', `<div class="frage" id="teilFrage"><b>Aufteilen?</b> Auf dem Beleg sind vermutlich Posten für andere Konten: ${liste}.
+    <div class="btns" style="margin-top:8px"><button type="button" class="btn sm" id="tfJa">Ja, Vorschlag zeigen</button><button type="button" class="btn sec sm" id="tfNein">Nein, alles auf ein Konto</button></div></div>`);
+  st.querySelector('#tfJa').onclick = () => { st.querySelector('#teilFrage').remove(); root.querySelector('#teile').innerHTML = ''; teileZeigen(root, vt); };
+  st.querySelector('#tfNein').onclick = () => st.querySelector('#teilFrage').remove();
 }
 
 function belegPfad(id, datum) { return `belege/${datum.slice(0, 4)}/${datum.slice(5, 7)}/${datum}_${id}.jpg`; }
@@ -1164,11 +1296,15 @@ async function leseUndFuelle(root, blob) {
     if (r.datum) fD.value = r.datum;
     if (r.geschaeft && !fT.value) fT.value = r.geschaeft;
     const typ = root.querySelector('#fTyp button.on')?.dataset.typ || 'A';
-    const kId = vorschlagKonto(fT.value, typ); if (kId && fK) fK.value = kId;
+    const kId = vorschlagKonto(fT.value, typ) || hinweisKonto(text.split(/\r?\n/).slice(0, 8).join(' '), typ); if (kId && fK) fK.value = kId;
     const teile = [];
     if (r.betrag != null) teile.push('Betrag ' + chf(r.betrag)); if (r.datum) teile.push('Datum ' + fmtDate(r.datum)); if (r.geschaeft) teile.push(r.geschaeft);
     status.innerHTML = teile.length ? `✓ Erkannt: ${esc(teile.join(' · '))}. <b>Bitte prüfen.</b>` : 'Nichts erkannt. Bitte Betrag und Datum von Hand eintragen. Das Foto wird trotzdem gespeichert.';
     if (r.betrag == null) fB.focus();
+    if (typ === 'A' && r.betrag != null && fK && !root.querySelector('.teil')) {
+      const vt = postenErkennen(text, fK.value);
+      if (vt.length && vt.reduce((s, t) => s + t.betrag, 0) < r.betrag) frageAufteilen(root, vt);
+    }
   } catch (err) {
     ocrFortschritt = null;
     status.textContent = 'Foto übernommen, aber Texterkennung fehlgeschlagen: ' + err.message;

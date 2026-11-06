@@ -140,6 +140,46 @@ a.btn { text-decoration: none; display: inline-block; }
 .warnkarte { background: #fff3d6; border-color: #f0d48a; color: #5a4300; }
 .warnkarte p { margin: 6px 0 0; }
 .playknopf { width: 34px; height: 34px; border-radius: 50%; background: var(--brand); color: #fff; display: inline-flex; align-items: center; justify-content: center; font-size: 14px; flex: none; margin-right: 10px; }
+/* Dashboard (Farben: validierte Kategorienpalette, hell/dunkel) */
+:root { --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100; --s5: #e87ba4; --s6: #008300; --s0: #a3a39e; }
+@media (prefers-color-scheme: dark) { :root { --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181; --s6: #008300; --s0: #6f6f6a; } }
+.dtiles { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+.dtile { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px; min-width: 0; }
+.dtile .muted { font-size: 12px; } .dval { font-size: 22px; font-weight: 700; margin: 2px 0; font-variant-numeric: tabular-nums; }
+.dsub { font-size: 12px; }
+.dsvg { width: 100%; height: auto; display: block; overflow: visible; }
+.dgrid { stroke: var(--line); stroke-width: 1; } .dbase { stroke: var(--muted); stroke-width: 1; opacity: .5; }
+.dax { fill: var(--muted); font-size: 10px; }
+.dbud { fill: none; stroke: var(--muted); stroke-width: 2; stroke-dasharray: 5 4; }
+.dist { fill: none; stroke: var(--s1); stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; }
+.distpt { fill: var(--s1); stroke: var(--card); stroke-width: 2; }
+.dprog { fill: none; stroke: var(--s2); stroke-width: 2; stroke-dasharray: 2 4; stroke-linecap: round; }
+.dprogpt { fill: var(--s2); stroke: var(--card); stroke-width: 2; }
+.dheute { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 2 3; }
+.dhit { fill: transparent; }
+.dlegend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--muted); margin-top: 6px; }
+.lsw { display: inline-block; width: 14px; height: 4px; border-radius: 2px; vertical-align: middle; margin-right: 5px; }
+.lsw.dist { background: var(--s1); } .lsw.dbud { background: repeating-linear-gradient(90deg, var(--muted) 0 4px, transparent 4px 7px); }
+.lsw.dprog { background: repeating-linear-gradient(90deg, var(--s2) 0 2px, transparent 2px 5px); }
+.dseg2 { margin: 4px 0 10px; }
+.dring { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+.dring svg { width: 150px; height: 150px; flex: none; margin: 0 auto; }
+.dseg { fill: none; stroke-width: 24; }
+.s1 { stroke: var(--s1); background: var(--s1); } .s2 { stroke: var(--s2); background: var(--s2); } .s3 { stroke: var(--s3); background: var(--s3); }
+.s4 { stroke: var(--s4); background: var(--s4); } .s5 { stroke: var(--s5); background: var(--s5); } .s6 { stroke: var(--s6); background: var(--s6); } .s0 { stroke: var(--s0); background: var(--s0); }
+.lsw.s1, .lsw.s2, .lsw.s3, .lsw.s4, .lsw.s5, .lsw.s6, .lsw.s0 { width: 12px; height: 12px; border-radius: 3px; }
+.dringz { fill: var(--text); font-size: 20px; font-weight: 700; }
+.dleg { list-style: none; margin: 0; padding: 0; flex: 1; min-width: 180px; font-size: 14px; }
+.dleg li { display: flex; align-items: center; gap: 6px; padding: 5px 0; border-top: 1px solid var(--line); }
+.dleg li:first-child { border-top: 0; } .dpct { width: 38px; text-align: right; }
+.dbars { list-style: none; margin: 0; padding: 0; }
+.dbars li { padding: 8px 0; border-top: 1px solid var(--line); } .dbars li:first-child { border-top: 0; }
+.dtrack { position: relative; height: 10px; background: var(--line); border-radius: 5px; margin: 6px 0 3px; }
+.dtrack i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 5px; background: var(--ok); }
+.dtrack i.warn { background: var(--warn); } .dtrack i.bad { background: var(--bad); }
+.dtrack b { position: absolute; top: -3px; bottom: -3px; width: 2px; margin-left: -1px; background: var(--text); border-radius: 1px; }
+.dstat { font-size: 12px; } .dstat.bad { color: var(--bad); } .dstat.warn { color: var(--warn); }
+.dleg .grow, .dbars .row span:first-child { flex: 1; min-width: 0; }
 
 </style>
 </head>
@@ -193,6 +233,119 @@ window.SEED = {
   ]
 };
 
+/* Dashboard: Berechnung und Grafiken (SVG ohne Fremdbibliothek).
+   Wird in App und Admin-Center gleich verwendet; arbeitet nur mit dem Datenobjekt (data.json). */
+const DASH = (() => {
+  const MKURZ = ['J', 'F', 'M', 'A', 'M', 'J', 'J', 'A', 'S', 'O', 'N', 'D'];
+  const fr = n => Math.round(n || 0).toLocaleString('de-CH');
+  const e = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const p2 = n => String(n).padStart(2, '0');
+  function jb(k, y) { const j = k.jahre || {}; if (j[y] != null) return j[y]; const f = Object.keys(j).filter(x => x < y).sort().pop(); return f ? j[f] : 0; }
+
+  // Kennzahlen eines Jahres. jetzt = heutiges Datum (für Tests übergebbar)
+  function rechne(d, y, jetzt = new Date()) {
+    y = String(y);
+    const konten = (d.konten || []).filter(k => k.aktiv !== false), km = {};
+    for (const k of konten) km[k.id] = k;
+    const monA = Array(12).fill(0), monE = Array(12).fill(0), proKonto = {};
+    for (const b of d.buchungen || []) {
+      if (!b.datum || !b.datum.startsWith(y)) continue;
+      const k = km[b.kontoId]; if (!k) continue;
+      const m = +b.datum.slice(5, 7) - 1;
+      if (k.typ === 'A') { monA[m] += b.betrag; (proKonto[k.id] = proKonto[k.id] || Array(12).fill(0))[m] += b.betrag; }
+      else monE[m] += b.betrag;
+    }
+    const budgetJ = konten.filter(k => k.typ === 'A').reduce((s, k) => s + jb(k, y), 0);
+    const budgetE = konten.filter(k => k.typ === 'E').reduce((s, k) => s + jb(k, y), 0);
+    // Budget zählt erst ab Beginn der Erfassung (sonst wäre das Soll im ersten Jahr zu hoch)
+    const startM = d.start && d.start.startsWith(y) ? +d.start.slice(5) - 1 : (d.start && d.start.slice(0, 4) > y ? 12 : 0);
+    const sollMon = Array.from({ length: 12 }, (_, m) => m >= startM ? budgetJ / 12 : 0);
+    const jetztY = String(jetzt.getFullYear());
+    const jan = new Date(+y, 0, 1), ende = new Date(+y + 1, 0, 1), jahrMs = ende - jan;
+    let pos; // Position "heute" in Monaten seit 1. Januar (0..12)
+    if (y < jetztY) pos = 12; else if (y > jetztY) pos = 0; else pos = (jetzt - jan) / jahrMs * 12;
+    const verstrichen = Math.max(0, pos - startM), rest = 12 - pos;
+    const istA = monA.reduce((a, b) => a + b, 0), istE = monE.reduce((a, b) => a + b, 0);
+    const budgetAbStart = sollMon.reduce((a, b) => a + b, 0);
+    const sollBisHeute = budgetJ / 12 * verstrichen;
+    const proMonat = verstrichen >= 0.5 ? istA / verstrichen : null;
+    const prognose = pos >= 12 ? istA : proMonat != null ? istA + proMonat * rest : null;
+    const kontenA = konten.filter(k => k.typ === 'A').map(k => ({ k, ist: (proKonto[k.id] || []).reduce((a, b) => a + b, 0), mon: proKonto[k.id] || Array(12).fill(0), budget: jb(k, y) }));
+    return { y, monA, monE, sollMon, istA, istE, budgetJ, budgetE, budgetAbStart, startM, pos, verstrichen, rest, proMonat, prognose, sollBisHeute, kontenA,
+      sparquote: istE > 0 ? (istE - istA) / istE : null, wenigDaten: verstrichen < 2 };
+  }
+
+  // Linie: Ausgaben kumuliert, Budget kumuliert (gestrichelt), Prognose bis Dezember (gepunktet)
+  function prognoseSvg(r) {
+    const W = 340, H = 190, L = 46, R = 10, T = 12, B = 24, w = W - L - R, h = H - T - B;
+    let kb = 0; const budPts = [[0, 0], ...r.sollMon.map((v, i) => [i + 1, kb += v])];
+    const bisM = Math.min(12, Math.floor(r.pos)); let ki = 0;
+    const istPts = [[r.startM, 0]];
+    for (let m = r.startM; m < bisM; m++) { ki += r.monA[m]; istPts.push([m + 1, ki]); }
+    if (r.pos < 12 && r.pos > r.startM) { ki += r.monA[bisM] || 0; istPts.push([r.pos, ki]); }
+    const maxV = Math.max(1, kb, r.istA, r.prognose || 0) * 1.08;
+    const X = m => L + m / 12 * w, Y = v => T + h - v / maxV * h;
+    const pfad = pts => pts.map((p, i) => (i ? 'L' : 'M') + X(p[0]).toFixed(1) + ' ' + Y(p[1]).toFixed(1)).join(' ');
+    const stufe = Math.pow(10, Math.floor(Math.log10(maxV / 3))), schritt = [1, 2, 2.5, 5, 10].map(f => f * stufe).find(s => maxV / s <= 4) || stufe * 10;
+    let grid = '';
+    for (let v = schritt; v < maxV; v += schritt) grid += `<line x1="${L}" x2="${W - R}" y1="${Y(v)}" y2="${Y(v)}" class="dgrid"/><text x="${L - 6}" y="${Y(v) + 4}" class="dax" text-anchor="end">${v >= 1000 ? fr(v / 1000) + 'k' : fr(v)}</text>`;
+    const mon = MKURZ.map((t, i) => `<text x="${X(i + 0.5)}" y="${H - 8}" class="dax" text-anchor="middle">${t}</text>`).join('');
+    const prog = r.prognose != null && r.pos < 12 && r.pos > r.startM ? `<path d="M${X(r.pos)} ${Y(ki)} L${X(12)} ${Y(r.prognose)}" class="dprog"/><circle cx="${X(12)}" cy="${Y(r.prognose)}" r="4" class="dprogpt"><title>Prognose Dezember: ${fr(r.prognose)} CHF</title></circle>` : '';
+    const ende = istPts[istPts.length - 1];
+    const MLANG = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
+    const punkte = istPts.slice(1).map(p => `<circle cx="${X(p[0])}" cy="${Y(p[1])}" r="9" class="dhit"><title>${p[0] % 1 ? 'Bis heute' : 'Ende ' + MLANG[p[0] - 1]}: ${fr(p[1])} CHF ausgegeben</title></circle>`).join('');
+    return `<svg viewBox="0 0 ${W} ${H}" class="dsvg" role="img" aria-label="Ausgaben kumuliert ${fr(r.istA)} CHF, Budget ${fr(kb)} CHF${r.prognose != null ? ', Prognose ' + fr(r.prognose) + ' CHF' : ''}">
+      ${grid}<line x1="${L}" x2="${W - R}" y1="${Y(0)}" y2="${Y(0)}" class="dbase"/>${mon}
+      <path d="${pfad(budPts)}" class="dbud"/>${prog}
+      ${istPts.length > 1 ? `<path d="${pfad(istPts)}" class="dist"/><circle cx="${X(ende[0])}" cy="${Y(ende[1])}" r="4.5" class="distpt"/>` : ''}${punkte}
+      ${r.pos > 0 && r.pos < 12 ? `<line x1="${X(r.pos)}" x2="${X(r.pos)}" y1="${T}" y2="${Y(0)}" class="dheute"/><text x="${X(r.pos) + 3}" y="${T + 9}" class="dax">heute</text>` : ''}
+    </svg>
+    <div class="dlegend"><span><i class="lsw dist"></i>Ausgaben</span><span><i class="lsw dbud"></i>Budget</span>${prog ? '<span><i class="lsw dprog"></i>Prognose</span>' : ''}</div>`;
+  }
+
+  // Ring: Anteile der Konten, 6 grösste + Übrige. items: [{name, wert, id}]
+  function ringHtml(items, klickAkt) {
+    const tot = items.reduce((s, x) => s + x.wert, 0);
+    if (tot <= 0) return '<div class="empty">Noch keine Ausgaben in diesem Zeitraum.</div>';
+    const sort = items.filter(x => x.wert > 0).sort((a, b) => b.wert - a.wert);
+    const top = sort.slice(0, 6), rest = sort.slice(6).reduce((s, x) => s + x.wert, 0);
+    const teile = top.map((x, i) => ({ ...x, f: 's' + (i + 1) }));
+    if (rest > 0) teile.push({ name: 'Übrige', wert: rest, f: 's0' });
+    const R = 62, U = 2 * Math.PI * R; let off = 0;
+    const segs = teile.map(t => { const len = t.wert / tot * U; const s = `<circle r="${R}" cx="80" cy="80" class="dseg ${t.f}" stroke-dasharray="${Math.max(0.5, len - 2).toFixed(2)} ${U.toFixed(2)}" stroke-dashoffset="${(-off).toFixed(2)}"><title>${e(t.name)}: ${fr(t.wert)} CHF (${Math.round(t.wert / tot * 100)}%)</title></circle>`; off += len; return s; }).join('');
+    const leg = teile.map(t => `<li${t.id && klickAkt ? ` class="click" data-act="${klickAkt}:${t.id}"` : ''}><i class="lsw ${t.f}"></i><span class="grow">${e(t.name)}</span><span class="num">${fr(t.wert)}</span><span class="num muted dpct">${Math.round(t.wert / tot * 100)}%</span></li>`).join('');
+    return `<div class="dring"><svg viewBox="0 0 160 160" role="img" aria-label="Ausgaben nach Konto, total ${fr(tot)} CHF"><g transform="rotate(-90 80 80)">${segs}</g>
+      <text x="80" y="76" text-anchor="middle" class="dringz">${fr(tot)}</text><text x="80" y="94" text-anchor="middle" class="dax">CHF</text></svg>
+      <ul class="dleg">${leg}</ul></div>`;
+  }
+
+  // Soll-Ist-Balken: Spur = Budget, Füllung = Ist, Strich = Soll bis heute
+  function sollIstHtml(zeilen, klickAkt, trenn = ':') {
+    if (!zeilen.length) return '<div class="empty">Noch kein Budget erfasst.</div>';
+    const st = z => z.ist <= z.soll ? ['ok', 'im Budget'] : z.ist <= z.soll * 1.1 ? ['warn', 'knapp darüber'] : ['bad', 'über Budget'];
+    return `<ul class="dbars">${zeilen.map(z => {
+      const [c, t] = st(z), max = Math.max(z.budget, z.ist, 1);
+      return `<li${z.id && klickAkt ? ` class="click" data-act="${klickAkt}${trenn}${e(z.id)}"` : ''}><div class="row"><span>${e(z.name)}</span><span class="num"><b>${fr(z.ist)}</b> <span class="muted">/ ${fr(z.budget)}</span></span></div>
+        <div class="dtrack" title="${e(z.name)}: ${fr(z.ist)} von ${fr(z.budget)} CHF, Soll bis heute ${fr(z.soll)} CHF"><i class="${c}" style="width:${(z.ist / max * 100).toFixed(1)}%"></i>${z.soll > 0 && z.soll < z.budget ? `<b style="left:${(z.soll / max * 100).toFixed(1)}%"></b>` : ''}</div>
+        <div class="muted dstat ${c}">${c === 'ok' ? '✓' : '⚠'} ${t}${z.soll > 0 ? ' · ' + Math.round(z.ist / z.soll * 100) + '% vom Soll bis heute' : ''}</div>${z.notiz ? `<div class="muted dsub">${z.notiz}</div>` : ''}</li>`;
+    }).join('')}</ul>`;
+  }
+
+  // Vier Kennzahlen-Kacheln
+  function kacheln(r) {
+    const pr = r.prognose, ueber = pr != null && r.budgetAbStart > 0 ? pr - r.budgetAbStart : null;
+    const k = (t, v, s, c = '') => `<div class="dtile"><div class="muted">${t}</div><div class="dval ${c}">${v}</div><div class="muted dsub">${s}</div></div>`;
+    return `<div class="dtiles">
+      ${k('Ausgaben ' + r.y, fr(r.istA), r.budgetAbStart ? 'von ' + fr(r.budgetAbStart) + ' CHF Budget' : 'kein Budget erfasst')}
+      ${k('Prognose Dezember', pr != null ? fr(pr) : '–', ueber == null ? (r.wenigDaten ? 'noch zu wenig Daten' : 'ohne Budget') : ueber > 0 ? fr(ueber) + ' CHF über Budget' : fr(-ueber) + ' CHF unter Budget', ueber == null ? '' : ueber > 0 ? 'neg' : 'pos')}
+      ${k('Sparquote', r.sparquote != null ? Math.round(r.sparquote * 100) + '%' : '–', r.istE ? 'Einnahmen ' + fr(r.istE) + ' CHF' : 'noch keine Einnahmen', r.sparquote == null ? '' : r.sparquote >= 0 ? 'pos' : 'neg')}
+      ${k('Pro Monat', r.proMonat != null ? fr(r.proMonat) : '–', r.budgetJ ? 'Budget ' + fr(r.budgetJ / 12) + ' CHF' : 'Durchschnitt Ausgaben')}
+    </div>${r.wenigDaten && pr != null ? '<p class="muted">Hinweis: Die Prognose beruht auf weniger als 2 Monaten und ist noch ungenau.</p>' : ''}`;
+  }
+
+  return { rechne, prognoseSvg, ringHtml, sollIstHtml, kacheln, fr };
+})();
+
 </script>
 <script>
 'use strict';
@@ -229,7 +382,7 @@ const S = {
   ich: LS.get('budget.ich', ''),
   ym: ymNow(),
   tab: 'start',
-  auswertung: 'monat',
+  auswertung: 'dash', dashZeit: 'jahr',
   filterKonto: '',
   data: null,
   syncing: false
@@ -505,8 +658,25 @@ function vNeu() {
 }
 
 function vAuswertung() {
-  const seg = `<div class="seg" style="margin-bottom:12px"><button data-act="aw:monat" class="${S.auswertung === 'monat' ? 'on' : ''}">Monat</button><button data-act="aw:jahr" class="${S.auswertung === 'jahr' ? 'on' : ''}">Jahr ${S.ym.slice(0, 4)}</button></div>`;
-  return seg + (S.auswertung === 'monat' ? awMonat() : awJahr());
+  const seg = `<div class="seg" style="margin-bottom:12px"><button data-act="aw:dash" class="${S.auswertung === 'dash' ? 'on' : ''}">Dashboard</button><button data-act="aw:monat" class="${S.auswertung === 'monat' ? 'on' : ''}">Monat</button><button data-act="aw:jahr" class="${S.auswertung === 'jahr' ? 'on' : ''}">Jahr ${S.ym.slice(0, 4)}</button></div>`;
+  return seg + (S.auswertung === 'dash' ? awDash() : S.auswertung === 'monat' ? awMonat() : awJahr());
+}
+function awDash() {
+  const y = S.ym.slice(0, 4), r = DASH.rechne(S.data, y), m = +S.ym.slice(5) - 1, jahr = S.dashZeit === 'jahr';
+  const zeit = `<div class="seg dseg2"><button data-act="dz:jahr" class="${jahr ? 'on' : ''}">Jahr ${y}</button><button data-act="dz:monat" class="${jahr ? '' : 'on'}">${esc(MONATE[m])}</button></div>`;
+  const ring = DASH.ringHtml(r.kontenA.map(x => ({ id: x.k.id, name: x.k.name, wert: jahr ? x.ist : x.mon[m] })), 'kontoBuch');
+  const zeilen = r.kontenA.filter(x => x.budget > 0).map(x => {
+    const budget = jahr ? x.budget : x.budget / 12, ist = jahr ? x.ist : x.mon[m];
+    const soll = jahr ? x.budget / 12 * r.verstrichen : budget;
+    return { id: x.k.id, name: x.k.name, budget, ist, soll };
+  }).filter(z => z.ist > 0 || z.soll > 0).sort((a, b) => (b.ist / (b.soll || 1)) - (a.ist / (a.soll || 1)));
+  return DASH.kacheln(r) +
+    `<div class="card"><h2>Reicht das Budget bis Ende Jahr?</h2>${DASH.prognoseSvg(r)}
+      <p class="muted">Die gepunktete Linie verlängert dein bisheriges Ausgabentempo bis Dezember.</p></div>
+    <div class="card"><div class="row"><h2>Wohin geht das Geld?</h2></div>${zeit}${ring}<p class="muted">Konto antippen zeigt die Buchungen.</p></div>
+    <div class="card"><h2>Soll und Ist pro Konto</h2>${zeit}${DASH.sollIstHtml(zeilen.slice(0, 8), 'kontoBuch')}
+      ${zeilen.length > 8 ? `<button class="btn sec sm" data-act="aw:jahr">Alle ${zeilen.length} Konten in der Jahrestabelle</button>` : ''}
+      <p class="muted">Balken = Budget ${jahr ? 'des Jahres' : 'des Monats'}, Füllung = ausgegeben${jahr ? ', Strich = Soll bis heute' : ''}.</p></div>`;
 }
 function kontoTabelle(typ, sollF, istF, titel, sollTitel) {
   let ts = 0, ti = 0;
@@ -572,7 +742,7 @@ function jahrTabelle(typ, y) {
 const HILFE = [
   ['beleg', 'Beleg fotografieren und buchen', 'Foto, Zuschnitt, Erkennung, Aufteilen'],
   ['fix', 'Feste Posten und fehlende Belege', 'Monatsposten bestätigen, Beleg nachreichen'],
-  ['budget', 'Budget und Auswertung', 'Jahresbudget, nächstes Jahr, Soll-Ist']
+  ['budget', 'Dashboard und Budget', 'Dashboard, Soll-Ist, Budget fürs nächste Jahr']
 ];
 function zeigeVideo(id) {
   const h = HILFE.find(x => x[0] === id); if (!h) return;
@@ -611,7 +781,7 @@ function vEinstellungen() {
     <div class="btns"><button class="btn sec" data-act="csv">Buchungen ${S.ym.slice(0, 4)} als CSV (Excel)</button>
     <button class="btn sec" data-act="backup">Sicherung herunterladen</button>
     <button class="btn sec" data-act="restore">Sicherung einlesen</button></div>
-    <p class="muted">Version vom 6.11.2026 (14) · Daten dieser Buchhaltung: ${S.data.buchungen.length} Buchungen, ${S.data.konten.length} Konten</p></div>`;
+    <p class="muted">Version vom 6.11.2026 (15) · Daten dieser Buchhaltung: ${S.data.buchungen.length} Buchungen, ${S.data.konten.length} Konten</p></div>`;
 }
 
 // Namensregel: Buchhaltung_<Name>, z. B. Buchhaltung_Brigitte
@@ -662,6 +832,7 @@ const AKT = {
   alleZeigen: () => { S.nurFehlend = false; render(); },
   filter: (_, el) => { S.filterKonto = el.value; render(); },
   aw: a => { S.auswertung = a; render(); },
+  dz: z => { S.dashZeit = z; render(); },
   gotoMonat: ym => { S.ym = ym; S.auswertung = 'monat'; render(); },
   kontoBuch: id => { S.filterKonto = id; zeige('buchungen'); },
   neuSpeichern: async () => {

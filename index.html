@@ -1178,7 +1178,15 @@ function leseBeleg(text) {
   }
   const g = zeilen.slice(0, 6).map(z => z.replace(/(?<=[A-Za-z])0|0(?=[A-Za-z])/g, 'o')).find(z => /[A-Za-zÄÖÜäöüéè]{3,}/.test(z) && !/quittung|beleg|kassenbon|rechnung|willkommen|herzlich|kasse|filiale/i.test(z));
   const geschaeft = g ? g.replace(/[^\wÄÖÜäöüéèàç&.' -]/g, '').replace(/\s+/g, ' ').trim().slice(0, 40) : '';
-  return { betrag, datum, geschaeft };
+  // Beleg nur in Euro (kein CHF/Fr. auf dem Beleg): Euro-Betrag zurückgeben, Umrechnung macht leseUndFuelle
+  let eur = null;
+  if (!kand.some(k => k.chf) && (kand.some(k => k.eur) || eurRe.test(text))) {
+    eur = pick(kand.filter(k => k.total));
+    if (eur == null) { const ti = zeilen.findIndex(z => totalRe.test(z) && !ausRe.test(z)); if (ti >= 0) eur = pick(kand.filter(k => k.i === ti + 1 && !k.aus)); }
+    if (eur == null) eur = pick(kand.filter(k => !k.aus));
+    if (eur != null) betrag = null;
+  }
+  return { betrag, datum, geschaeft, eur };
 }
 const KONTO_HINWEISE = [
   [/migros|coop|aldi|lidl|denner|volg|spar|landi|manor food|bäckerei|metzgerei|lebensmittel/i, /essen|haushalt/i],
@@ -1352,6 +1360,17 @@ function vorschauSetzen(root, blob, zuschnitt) {
     await leseUndFuelle(root, S.formBeleg.blob);
   });
 }
+// Euro-Kurs (EZB-Referenzkurs über frankfurter.dev, gratis ohne Schlüssel); offline: letzter bekannter Kurs
+async function eurKurs(datum) {
+  const d = datum && datum < todayISO() ? datum : 'latest', key = 'budget.kurs.EUR.' + d;
+  const c = d !== 'latest' && LS.get(key, null); if (c) return c;
+  try {
+    const r = await fetch(`https://api.frankfurter.dev/v1/${d}?from=EUR&to=CHF`);
+    if (r.ok) { const j = await r.json(); const k = { kurs: j.rates.CHF, datum: j.date };
+      if (k.kurs > 0) { if (d !== 'latest') LS.set(key, k); LS.set('budget.kurs.EUR.letzter', k); return k; } }
+  } catch {}
+  const l = LS.get('budget.kurs.EUR.letzter', null); return l ? { ...l, alt: true } : null;
+}
 async function leseUndFuelle(root, blob) {
   const status = root.querySelector('#belegStatus');
   try {
@@ -1376,10 +1395,20 @@ async function leseUndFuelle(root, blob) {
     const typ = root.querySelector('#fTyp button.on')?.dataset.typ || 'A';
     const kId = vorschlagKonto(fT.value, typ) || hinweisKonto(text.split(/\r?\n/).slice(0, 8).join(' '), typ); if (kId && fK) fK.value = kId;
     const teile = [];
-    if (r.betrag != null) teile.push('Betrag ' + chf(r.betrag)); if (r.datum) teile.push('Datum ' + fmtDate(r.datum)); if (r.geschaeft) teile.push(r.geschaeft);
+    if (r.eur != null) {
+      // Euro-Beleg: zum Tageskurs des Belegdatums in CHF umrechnen und im Text vermerken
+      status.textContent = 'Beleg in Euro, Kurs wird abgerufen…';
+      const k = await eurKurs(fD.value);
+      fT.value = (fT.value ? fT.value + ' ' : '') + `(EUR ${r.eur.toFixed(2)})`;
+      if (k) {
+        r.betrag = Math.round(r.eur * k.kurs * 100) / 100; fB.value = r.betrag.toFixed(2);
+        teile.push(`EUR ${chf(r.eur)} = CHF ${chf(r.betrag)} (Kurs ${k.kurs.toFixed(4)} vom ${fmtDate(k.datum)}${k.alt ? ', letzter bekannter Kurs' : ''})`);
+      } else teile.push(`EUR ${chf(r.eur)}, Kurs nicht abrufbar: bitte CHF-Betrag eintragen`);
+    }
+    if (r.betrag != null && r.eur == null) teile.push('Betrag ' + chf(r.betrag)); if (r.datum) teile.push('Datum ' + fmtDate(r.datum)); if (r.geschaeft) teile.push(r.geschaeft);
     status.innerHTML = teile.length ? `✓ Erkannt: ${esc(teile.join(' · '))}. <b>Bitte prüfen.</b>` : 'Nichts erkannt. Bitte Betrag und Datum von Hand eintragen. Das Foto wird trotzdem gespeichert.';
     if (r.betrag == null) fB.focus();
-    if (typ === 'A' && r.betrag != null && fK && !root.querySelector('.teil')) {
+    if (typ === 'A' && r.betrag != null && r.eur == null && fK && !root.querySelector('.teil')) {
       const vt = postenErkennen(text, fK.value);
       if (vt.length && vt.reduce((s, t) => s + t.betrag, 0) < r.betrag) frageAufteilen(root, vt);
     }

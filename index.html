@@ -398,7 +398,7 @@ function jahrKarte(ym) {
   let soll = 0, ist = 0;
   for (const k of kontenTyp('A')) soll += jahresBudget(k, y);
   for (const b of S.data.buchungen) { if (!b.datum.startsWith(y)) continue; const k = konto(b.kontoId); if (k && k.typ === 'A') ist += b.betrag; }
-  if (!soll) return `<div class="card"><h3>Jahresbudget ${y}</h3><p class="muted">Noch kein Jahresbudget erfasst.</p><button class="btn sec sm" data-act="jahrBudget">Jahresbudget ${y} erfassen</button></div>`;
+  if (!soll) return `<div class="card"><h3>Jahresbudget ${y}</h3><p class="muted">Noch kein Jahresbudget erfasst.</p><button class="btn sec sm" data-act="jahrBudget:${y}">Jahresbudget ${y} erfassen</button></div>`;
   const anteil = sollAnteil(y), sollBis = soll * anteil;
   return `<div class="card"><h3>Ausgaben Jahr ${y}</h3>
     <div class="row"><span class="big" style="font-size:20px">${chf0(ist)}</span><span class="muted">von ${chf0(soll)} CHF · ${Math.round(ist / soll * 100)}%</span></div>
@@ -577,7 +577,7 @@ function vEinstellungen() {
     ${S.mandanten.length > 1 ? `<button class="btn danger" data-act="mandantLoeschen">Diese Buchhaltung auf diesem Gerät entfernen</button>` : ''}</div></div>
 
     <div class="card"><h2>Kontoplan und Budget</h2><p class="muted">Budget gilt pro Jahr. Antippen zum Ändern von Name, Budget und festem Posten.</p>
-    <div class="btns" style="margin:8px 0"><button class="btn" data-act="jahrBudget">Jahresbudget ${S.ym.slice(0, 4)} erfassen</button></div>
+    <div class="btns" style="margin:8px 0"><button class="btn" data-act="jahrBudget:${S.ym.slice(0, 4)}">Jahresbudget ${S.ym.slice(0, 4)}</button><button class="btn sec" data-act="jahrBudget:${+S.ym.slice(0, 4) + 1}">Budget ${+S.ym.slice(0, 4) + 1} vorbereiten</button></div>
     <h3 style="margin-top:12px">Ausgaben</h3><ul class="list">${konten('A')}</ul>
     <h3 style="margin-top:12px">Einnahmen</h3><ul class="list">${konten('E')}</ul>
     <div class="btns" style="margin-top:10px"><button class="btn sec" data-act="kontoEdit:neu">+ Konto hinzufügen</button></div></div>
@@ -741,7 +741,7 @@ const AKT = {
   setIch: (_, el) => { S.ich = el.value.trim(); LS.set('budget.ich', S.ich); },
   kontoEdit: id => kontoSheet(id === 'neu' ? null : konto(id)),
   installieren: () => installieren(),
-  jahrBudget: () => jahrBudgetSheet(),
+  jahrBudget: y => jahrBudgetSheet(y),
   mandantNeu: () => mandantNeu(),
   mandantLoeschen: () => {
     const m = mandant();
@@ -834,12 +834,13 @@ function kontoSheet(k) {
     });
 }
 
-function jahrBudgetSheet() {
-  const y = S.ym.slice(0, 4);
+function jahrBudgetSheet(y) {
+  y = String(y || S.ym.slice(0, 4)); const vj = String(+y - 1);
   const zeile = k => { const v = (k.jahre || {})[y];
     return `<div class="row" style="margin:6px 0"><label for="jb_${k.id}" style="margin:0;flex:1;color:var(--text)">${esc(k.name)}</label>
       <input id="jb_${k.id}" data-id="${k.id}" inputmode="decimal" style="width:120px;text-align:right" value="${v != null ? v : ''}" placeholder="${jahresBudget(k, y) ? chf0(jahresBudget(k, y)) : '0'}"></div>`; };
   sheet(`<h2>Jahresbudget ${y}</h2><p class="muted">Betrag fürs ganze Jahr in CHF. Leer = kein Budget${Object.values(S.data.konten).some(k => Object.keys(k.jahre || {}).some(x => x < y)) ? ' (grau: Wert vom Vorjahr wird übernommen)' : ''}.</p>
+    <div class="btns"><button class="btn sec sm" id="jbVJ">Budget ${vj} übernehmen</button></div>
     <h3 style="margin-top:12px">Ausgaben</h3>${kontenTyp('A').map(zeile).join('')}
     <div class="row" style="margin:8px 0;font-weight:700"><span>Total Ausgaben</span><span id="jbTA" class="num"></span></div>
     <h3 style="margin-top:12px">Einnahmen</h3>${kontenTyp('E').map(zeile).join('')}
@@ -852,6 +853,12 @@ function jahrBudgetSheet() {
         root.querySelector('#jbTA').textContent = chf0(t.A) + ' CHF'; root.querySelector('#jbTE').textContent = chf0(t.E) + ' CHF';
       };
       root.querySelectorAll('input[data-id]').forEach(i => i.oninput = totale); totale();
+      // Vorjahr als Startwerte in leere Felder kopieren, danach einzeln anpassen
+      root.querySelector('#jbVJ').onclick = () => {
+        let n = 0;
+        root.querySelectorAll('input[data-id]').forEach(i => { const v = jahresBudget(konto(i.dataset.id), vj); if (i.value.trim() === '' && v) { i.value = v; n++; } });
+        totale(); toast(n ? `${n} Beträge von ${vj} übernommen. Jetzt anpassen und speichern.` : `Keine Werte von ${vj} zum Übernehmen.`);
+      };
       root.querySelector('#cx').onclick = close;
       root.querySelector('#sv').onclick = () => {
         for (const i of root.querySelectorAll('input[data-id]')) {

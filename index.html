@@ -118,6 +118,11 @@ tr.click { cursor: pointer; }
 #belegStatus { margin-top: 4px; }
 a.btn { text-decoration: none; display: inline-block; }
 
+.installbar { position: fixed; left: 8px; right: 8px; bottom: calc(76px + env(safe-area-inset-bottom)); z-index: 8; background: var(--card);
+  border: 1px solid var(--brand); border-radius: 14px; padding: 12px 14px; box-shadow: 0 4px 16px rgba(0,0,0,.18);
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; max-width: 560px; margin: 0 auto; }
+.schritte li { margin: 6px 0; }
+
 </style>
 </head>
 <body>
@@ -263,6 +268,7 @@ function init() {
   render();
   if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(() => {});
   setTimeout(() => sync(eingeladen), 400);
+  setTimeout(() => zeigeInstallHinweis(eingeladen), 1500);
   window.addEventListener('hashchange', () => { if (pruefeEinladung()) { render(); sync(true); } });
 }
 
@@ -533,6 +539,7 @@ function vEinstellungen() {
     ${m.repo ? `<button class="btn danger" data-act="ghTrennen">Abgleich ausschalten</button>` : ''}</div>
     ${m.lastSync ? `<p class="muted">Letzter Abgleich: ${new Date(m.lastSync).toLocaleString('de-CH')}</p>` : ''}</div>
 
+    ${istInstalliert() || location.protocol === 'file:' ? '' : `<div class="card"><h2>Startbildschirm</h2><p class="muted">Die App als Symbol auf dem Handy oder PC ablegen, wie eine normale App.</p><button class="btn" data-act="installieren">📲 Auf den Startbildschirm</button></div>`}
     <div class="card"><h2>Daten</h2>
     <div class="btns"><button class="btn sec" data-act="csv">Buchungen ${S.ym.slice(0, 4)} als CSV (Excel)</button>
     <button class="btn sec" data-act="backup">Sicherung herunterladen</button>
@@ -655,6 +662,7 @@ const AKT = {
   setName: (_, el) => { mandant().name = el.value.trim() || 'Buchhaltung'; speichereMandanten(); aktualisiereKopf(); },
   setIch: (_, el) => { S.ich = el.value.trim(); LS.set('budget.ich', S.ich); },
   kontoEdit: id => kontoSheet(id === 'neu' ? null : konto(id)),
+  installieren: () => installieren(),
   jahrBudget: () => jahrBudgetSheet(),
   mandantNeu: () => mandantNeu(),
   mandantLoeschen: () => {
@@ -1127,6 +1135,40 @@ function pruefeEinladung() {
   S.aktiv = md.id; speichereMandanten(); ladeDaten();
   toast('Buchhaltung eingerichtet, Daten werden geladen…');
   return true;
+}
+
+/* ---------- Auf den Startbildschirm ---------- */
+// Ein Browser darf das Symbol nie ohne Zustimmung anlegen. Android/Chrome: ein Tipp auf „Installieren“ genügt.
+// iPhone/Safari kennt das nicht, dort zeigen wir die zwei Schritte.
+let installPrompt = null;
+const istInstalliert = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+const istIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installPrompt = e; zeigeInstallHinweis(); });
+window.addEventListener('appinstalled', () => { installPrompt = null; document.getElementById('installBar')?.remove(); toast('Symbol auf dem Startbildschirm angelegt ✓'); });
+async function installieren() {
+  if (installPrompt) {
+    installPrompt.prompt();
+    const w = await installPrompt.userChoice.catch(() => null);
+    installPrompt = null; document.getElementById('installBar')?.remove();
+    if (w && w.outcome === 'accepted') toast('Wird auf den Startbildschirm gelegt…');
+    return;
+  }
+  const ios = istIOS;
+  sheet(`<h2>Symbol auf den Startbildschirm</h2>${ios ? `
+    <ol class="schritte"><li>Unten in Safari auf <b>Teilen</b> tippen (Quadrat mit Pfeil nach oben ⬆).</li><li><b>Zum Home-Bildschirm</b> wählen (evtl. etwas nach unten wischen).</li><li>Oben rechts <b>Hinzufügen</b>.</li></ol>
+    <p class="muted">Wichtig: Das geht nur in Safari, nicht in Chrome auf dem iPhone.</p>` : `
+    <ol class="schritte"><li>Oben rechts in Chrome auf <b>⋮</b> tippen.</li><li><b>Zum Startbildschirm hinzufügen</b> oder <b>App installieren</b> wählen.</li><li><b>Installieren</b> bestätigen.</li></ol>`}
+    <div class="btns" style="margin-top:12px"><button class="btn" id="cx">Verstanden</button></div>`, (root, close) => root.querySelector('#cx').onclick = close);
+}
+function zeigeInstallHinweis(trotzdem) {
+  if (istInstalliert() || location.protocol === 'file:' || document.getElementById('installBar')) return;
+  if (!trotzdem && LS.get('budget.installSpaeter', 0) > Date.now()) return;
+  if (!installPrompt && !istIOS && !trotzdem) return;
+  const bar = document.createElement('div'); bar.id = 'installBar'; bar.className = 'installbar';
+  bar.innerHTML = `<span>📲 Budget-App als Symbol auf den Startbildschirm legen?</span><div class="btns"><button class="btn sm" id="iJa">${installPrompt ? 'Installieren' : 'So geht’s'}</button><button class="btn sec sm" id="iNein">Später</button></div>`;
+  document.body.appendChild(bar);
+  bar.querySelector('#iJa').onclick = installieren;
+  bar.querySelector('#iNein').onclick = () => { LS.set('budget.installSpaeter', Date.now() + 7 * 864e5); bar.remove(); };
 }
 
 /* ---------- Hilfen ---------- */

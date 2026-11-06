@@ -2580,11 +2580,12 @@ async function ladeInfo(r) {
 /* ---------- Berechnungen ---------- */
 function jahresBudget(k, y) { const j = k.jahre || {}; if (j[y] != null) return j[y]; const f = Object.keys(j).filter(x => x < y).sort().pop(); return f ? j[f] : (k.budget ? k.budget * 12 : 0); }
 function kennzahlen(d, y = heute().slice(0, 4)) {
-  const r = { budA: 0, budE: 0, istA: 0, istE: 0, anzahl: 0, letzte: null, konten: {} };
+  const r = { budA: 0, budE: 0, istA: 0, istE: 0, anzahl: 0, letzte: null, konten: {}, fehlend: 0, ohne: 0 };
   if (!d) return r;
   const kmap = {}; for (const k of d.konten || []) { if (k.aktiv === false) continue; kmap[k.id] = k; const b = jahresBudget(k, y); if (k.typ === 'A') r.budA += b; else r.budE += b; r.konten[k.id] = { k, bud: b, ist: 0 }; }
   for (const b of d.buchungen || []) {
     if (!r.letzte || (b.u || 0) > r.letzte.u) r.letzte = b;
+    if (!b.beleg && b.belegFehlt) r.fehlend++; else if (!b.beleg && b.ohneBeleg) r.ohne++;
     if (!b.datum || !b.datum.startsWith(y)) continue;
     const k = kmap[b.kontoId]; if (!k) continue;
     r.anzahl++; if (k.typ === 'A') r.istA += b.betrag; else r.istE += b.betrag;
@@ -2637,6 +2638,7 @@ function vUebersicht() {
       ${inf.fehler ? `<p class="neg">${esc(inf.fehler)}</p>` : !inf.daten ? `<p class="muted">Noch keine Daten (data.json fehlt).</p>` : `
       <div class="row" style="margin-top:10px"><span>Ausgaben ${y}</span><span class="num"><b>${chf0(z.istA)}</b> / ${chf0(z.budA)} CHF</span></div>${bar(z.budA, z.istA)}
       <div class="row muted"><span>Einnahmen ${chf0(z.istE)} / ${chf0(z.budE)}</span><span>${z.anzahl} Buchungen</span></div>
+      ${z.fehlend || z.ohne ? `<div class="personen">${z.fehlend ? `<span class="pill warnp">⚠ ${z.fehlend} ${z.fehlend === 1 ? 'Beleg fehlt' : 'Belege fehlen'}</span>` : ''}${z.ohne ? `<span class="pill">${z.ohne} ohne Beleg</span>` : ''}</div>` : ''}
       <div class="muted">Letzte Buchung: ${z.letzte ? fmtZeit(new Date(z.letzte.u).toISOString()) + (z.letzte.von ? ' · ' + esc(z.letzte.von) : '') : '–'}</div>`}
       <div class="personen">${pers}</div>
       <div class="btns" style="margin-top:12px"><button class="btn sm" data-act="einladen|${esc(r.full)}">+ Person einladen</button>
@@ -2836,7 +2838,7 @@ function detailsSheet(full) {
     .map(x => `<tr><td>${esc(x.k.name)}</td><td class="n">${chf0(x.bud)}</td><td class="n">${chf0(x.ist)}</td><td class="n">${x.bud ? Math.round(x.ist / x.bud * 100) + '%' : '–'}</td></tr>`).join('');
   const kmap = {}; ((inf.daten || {}).konten || []).forEach(k => kmap[k.id] = k);
   const letzte = ((inf.daten || {}).buchungen || []).slice().sort((a, b) => (b.u || 0) - (a.u || 0)).slice(0, 15)
-    .map(b => `<tr><td class="klein">${fmtDate(b.datum)}</td><td>${esc(b.text || (kmap[b.kontoId] || {}).name || '')}${b.beleg ? ' 📎' : ''}<div class="klein">${esc((kmap[b.kontoId] || {}).name || '')}</div></td><td class="klein">${esc(b.von || '')}</td><td class="n">${chf(b.betrag)}</td></tr>`).join('');
+    .map(b => `<tr><td class="klein">${fmtDate(b.datum)}</td><td>${esc(b.text || (kmap[b.kontoId] || {}).name || '')}${b.beleg ? ' 📎' : b.belegFehlt ? ' <span class="neg">⚠ Beleg fehlt</span>' : b.ohneBeleg ? ' <span class="klein">(ohne Beleg: ' + esc(b.ohneBeleg) + ')</span>' : ''}<div class="klein">${esc((kmap[b.kontoId] || {}).name || '')}</div></td><td class="klein">${esc(b.von || '')}</td><td class="n">${chf(b.betrag)}</td></tr>`).join('');
   const pers = (inf.personen || []).map(p => { const [c, t] = ablaufStatus(p); return `<li><div class="grow"><b>${esc(p.name)}</b> <span class="pill ${c}">${esc(t || 'aktiv')}</span><div class="muted">Schlüssel „${esc(p.schluessel)}“ · eingeladen ${fmtDate(p.erstellt)}</div></div>
     ${p.gesperrt ? '' : `<button class="btn danger sm" data-sperr="${esc(p.id)}">Sperren</button>`}</li>`; }).join('');
   sheet(`<h2>${esc(anzeigeName(r.name))}</h2><p class="muted"><a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(full)}</a> · <a href="${esc(r.url)}/commits" target="_blank" rel="noopener">GitHub-Historie</a> · <a href="${esc(r.url)}/tree/main/belege" target="_blank" rel="noopener">Belege</a></p>

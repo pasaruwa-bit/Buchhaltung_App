@@ -289,6 +289,9 @@ function init() {
 
 /* ---------- Berechnungen ---------- */
 const konto = id => S.data.konten.find(k => k.id === id);
+// Beleg nötig: einstellbar pro Konto; ohne Einstellung bei variablen Ausgaben ja, bei festen Posten und Einnahmen nein
+const belegNoetig = k => !!k && (k.beleg != null ? !!k.beleg : (k.typ === 'A' && !k.fix));
+const fehlendeBelege = () => S.data.buchungen.filter(b => b.belegFehlt && !b.beleg);
 const kontenTyp = typ => S.data.konten.filter(k => k.typ === typ && k.aktiv !== false).sort((a, b) => String(a.nr).localeCompare(String(b.nr), 'de', { numeric: true }));
 // Jahresbudget eines Kontos; ohne Eintrag gilt der Wert des letzten Jahres mit Budget
 function jahresBudget(k, y) {
@@ -360,7 +363,7 @@ function vStart() {
     ${barHtml('A', s.A.soll, s.A.ist)}
     <div class="row muted"><span>${s.A.soll - s.A.ist >= 0 ? 'Noch verfügbar' : 'Über Budget'}</span><span class="num ${s.A.soll - s.A.ist >= 0 ? 'pos' : 'neg'}">${chf0(Math.abs(s.A.soll - s.A.ist))} CHF</span></div>
   </div>
-  ${jahrKarte(ym)}
+  ${fehltKarte()}${jahrKarte(ym)}
   <div class="card"><div class="grid2">
     <div><h3>Einnahmen</h3><div class="big" style="font-size:20px">${chf0(s.E.ist)}</div><div class="muted">Budget ${chf0(s.E.soll)}</div></div>
     <div><h3>Saldo</h3><div class="big ${saldo >= 0 ? 'pos' : 'neg'}" style="font-size:20px">${saldo >= 0 ? '+' : ''}${chf0(saldo)}</div><div class="muted">Einnahmen − Ausgaben</div></div>
@@ -386,6 +389,10 @@ function vStart() {
     (letzte.length ? `<ul class="list">${letzte.map(buchungLi).join('')}</ul>` : `<div class="empty">Noch keine Buchungen in diesem Monat.</div>`) + `</div>`;
   return h;
 }
+function fehltKarte() {
+  const n = fehlendeBelege().length; if (!n) return '';
+  return `<div class="card click" data-act="fehlend"><div class="row"><h3 style="margin:0">📎 ${n} ${n === 1 ? 'Beleg fehlt' : 'Belege fehlen'}</h3><span class="btn sec sm">nachreichen</span></div></div>`;
+}
 function jahrKarte(ym) {
   const y = ym.slice(0, 4);
   let soll = 0, ist = 0;
@@ -410,7 +417,7 @@ function sollAnteil(y) {
 function buchungLi(b) {
   const k = konto(b.kontoId) || { name: '(Konto gelöscht)', typ: 'A' };
   return `<li class="click" data-act="edit:${b.id}"><div class="grow"><div class="t">${esc(b.text || k.name)}</div>
-    <div class="muted">${b.beleg ? '📎 ' : ''}${b.gruppe ? '⇄ ' : ''}${fmtDate(b.datum)} · ${esc(k.name)}${b.von ? ' · ' + esc(b.von) : ''}</div></div>
+    <div class="muted">${b.beleg ? '📎 ' : b.belegFehlt ? '<span class="neg">⚠ Beleg fehlt</span> · ' : b.ohneBeleg ? 'ohne Beleg · ' : ''}${b.gruppe ? '⇄ ' : ''}${fmtDate(b.datum)} · ${esc(k.name)}${b.von ? ' · ' + esc(b.von) : ''}</div></div>
     <span class="num ${k.typ === 'E' ? 'pos' : ''}">${k.typ === 'E' ? '+' : '−'}${chf(b.betrag)}</span></li>`;
 }
 
@@ -425,6 +432,11 @@ function vBuchungen() {
     <div class="card" id="bListe">${buchungsListe()}</div>`;
 }
 function buchungsListe() {
+  if (S.nurFehlend) {
+    const l = fehlendeBelege().sort((a, b) => b.datum.localeCompare(a.datum));
+    return `<div class="row"><h2>${l.length} ${l.length === 1 ? 'Beleg fehlt' : 'Belege fehlen'}</h2><button class="btn sec sm" data-act="alleZeigen">alle Buchungen</button></div>
+      <p class="muted">Buchung antippen und das Foto anhängen.</p>${l.length ? `<ul class="list">${l.map(buchungLi).join('')}</ul>` : '<div class="empty">✓ Alle Belege sind da.</div>'}`;
+  }
   const q = (S.suche || '').trim().toLowerCase();
   let list = q ? S.data.buchungen.slice() : buchungenIm(S.ym);
   if (S.filterKonto) list = list.filter(b => b.kontoId === S.filterKonto);
@@ -557,7 +569,7 @@ function jahrTabelle(typ, y) {
 function vEinstellungen() {
   const m = mandant();
   const konten = t => kontenTyp(t).map(k => `<li class="click" data-act="kontoEdit:${k.id}"><div class="grow"><div class="t">${esc(k.nr)} ${esc(k.name)}</div>
-    <div class="muted">${jahresBudget(k, S.ym.slice(0, 4)) ? chf0(jahresBudget(k, S.ym.slice(0, 4))) + ' CHF/Jahr' : 'kein Budget'}${k.fix ? ' · fester Posten' + (fixBetrag(k) ? ' ' + chf(fixBetrag(k)) + '/Monat' : '') : ''}</div></div><span class="muted">›</span></li>`).join('');
+    <div class="muted">${jahresBudget(k, S.ym.slice(0, 4)) ? chf0(jahresBudget(k, S.ym.slice(0, 4))) + ' CHF/Jahr' : 'kein Budget'}${k.fix ? ' · fester Posten' + (fixBetrag(k) ? ' ' + chf(fixBetrag(k)) + '/Monat' : '') : ''}${t === 'A' && belegNoetig(k) ? ' · 📎 Beleg nötig' : ''}</div></div><span class="muted">›</span></li>`).join('');
   return `<div class="card"><h2>Buchhaltung</h2>
     <label for="sName">Name dieser Buchhaltung</label><input id="sName" value="${esc(m.name)}" data-act="setName">
     <label for="sIch">Dein Name (wird bei Buchungen vermerkt)</label><input id="sIch" value="${esc(S.ich)}" placeholder="z. B. Walter" data-act="setIch">
@@ -628,7 +640,9 @@ function neueBuchung(f, extra = {}) {
   return b;
 }
 const AKT = {
-  tab: t => zeige(t),
+  tab: t => { S.nurFehlend = false; zeige(t); },
+  fehlend: () => { S.nurFehlend = true; S.suche = ''; zeige('buchungen'); },
+  alleZeigen: () => { S.nurFehlend = false; render(); },
   filter: (_, el) => { S.filterKonto = el.value; render(); },
   aw: a => { S.auswertung = a; render(); },
   gotoMonat: ym => { S.ym = ym; S.auswertung = 'monat'; render(); },
@@ -642,6 +656,10 @@ const AKT = {
     const d = aehnlicheBuchung(f);
     if (d && !confirm(`Möglicherweise schon erfasst:\n${fmtDate(d.datum)} · ${d.text || (konto(d.kontoId) || {}).name || ''} · ${chf(d.betrag)} CHF\n\nTrotzdem speichern?`)) return;
     const extra = {};
+    if (!S.formBeleg) {
+      const k = [f.kontoId, ...teile.map(t => t.kontoId)].map(konto).find(belegNoetig);
+      if (k) { const w = await belegFrage(k); if (!w) return; Object.assign(extra, w); }
+    }
     if (S.formBeleg) { try { extra.beleg = await speichereBeleg(S.formBeleg, f.datum); } catch (e) { toast('Beleg konnte nicht gespeichert werden: ' + e.message); return; } }
     S.formBeleg = null;
     if (teile.length) {
@@ -657,6 +675,8 @@ const AKT = {
     S.formBeleg = null;
     sheet(`<h2>Buchung bearbeiten</h2>${belegBoxHtml()}<div id="fHolder">${formBuchung(b)}</div>
       ${b.fixMonat ? `<p class="muted">Fester Posten ${esc(ymLabel(b.fixMonat))}</p>` : ''}
+      ${b.belegFehlt && !b.beleg ? `<p class="neg">⚠ Beleg fehlt noch. Oben fotografieren oder Bild wählen, dann Speichern.</p>` : ''}
+      ${b.ohneBeleg && !b.beleg ? `<p class="muted">Ohne Beleg gespeichert: ${esc(b.ohneBeleg)}</p>` : ''}
       ${b.gruppe ? `<p class="muted">⇄ Teil eines aufgeteilten Belegs. Die anderen Teile bleiben beim Ändern unverändert.</p>` : ''}
       ${b.von ? `<p class="muted">Erfasst von ${esc(b.von)}</p>` : ''}
       <div class="btns" style="margin-top:16px"><button class="btn" id="sv">Speichern</button><button class="btn sec" id="cx">Abbrechen</button><button class="btn danger" id="dl">Löschen</button></div>`,
@@ -666,6 +686,11 @@ const AKT = {
         root.querySelector('#sv').onclick = async () => {
           const f = leseForm(root); if (!f) return;
           if (S.formBeleg) { try { f.beleg = await speichereBeleg(S.formBeleg, f.datum); } catch (e) { return toast('Beleg konnte nicht gespeichert werden: ' + e.message); } S.formBeleg = null; }
+          if (f.beleg) {
+            delete b.belegFehlt; delete b.ohneBeleg;
+            // Nachgereichter Beleg gilt für alle Teile eines aufgeteilten Belegs
+            if (b.gruppe) for (const x of S.data.buchungen) if (x.gruppe === b.gruppe && x !== b && !x.beleg) { x.beleg = f.beleg; delete x.belegFehlt; delete x.ohneBeleg; x.u = now(); }
+          }
           const alt = { betrag: b.betrag, datum: b.datum, kontoId: b.kontoId, text: b.text };
           Object.assign(b, f, { u: now() });
           const geaendert = Object.keys(alt).filter(x => alt[x] !== b[x]);
@@ -772,6 +797,8 @@ function kontoSheet(k) {
     <label for="kName">Name</label><input id="kName" value="${esc(k.name)}">
     <label for="kFix">Fester Posten (kommt jeden Monat zum Bestätigen)</label>
     <select id="kFix"><option value="">Nein</option><option value="fix" ${k.fix === 'fix' ? 'selected' : ''}>Ja, fix (Betrag immer gleich)</option><option value="variabel" ${k.fix === 'variabel' ? 'selected' : ''}>Ja, variabel (Betrag eintragen, z. B. Lohn)</option></select>
+    <label for="kBel">Beleg nötig (bei Ausgaben)</label>
+    <select id="kBel"><option value="1" ${belegNoetig({ typ: 'A', ...k }) ? 'selected' : ''}>Ja, beim Erfassen nachfragen</option><option value="0" ${belegNoetig({ typ: 'A', ...k }) ? '' : 'selected'}>Nein</option></select>
     <div class="grid2"><div><label for="kFB">Betrag pro Monat</label><input id="kFB" inputmode="decimal" value="${k.fixBetrag != null ? k.fixBetrag : ''}" placeholder="leer"></div>
     <div><label for="kTag">Fällig am Tag</label><input id="kTag" type="number" min="1" max="28" value="${k.tag || 1}"></div></div>
     <p class="muted">Der Monatsbetrag wird nur bei festen Posten zum Bestätigen vorgeschlagen.</p>
@@ -790,7 +817,7 @@ function kontoSheet(k) {
         if (fv !== '' && fb == null) return toast('Monatsbetrag ungültig.');
         const jahre = { ...(k.jahre || {}) }; if (budget == null) delete jahre[y]; else jahre[y] = budget;
         const upd = { nr: root.querySelector('#kNr').value.trim(), name, typ, jahre, fixBetrag: fb, fix: root.querySelector('#kFix').value,
-          tag: Math.max(1, Math.min(28, +root.querySelector('#kTag').value || 1)), aktiv: true, u: now() };
+          tag: Math.max(1, Math.min(28, +root.querySelector('#kTag').value || 1)), beleg: typ === 'A' && root.querySelector('#kBel').value === '1', aktiv: true, u: now() };
         const altB = neu ? undefined : (k.jahre || {})[y];
         if (neu) S.data.konten.push({ id: uid(), ...upd }); else Object.assign(k, upd);
         protokoll(neu ? 'neu' : 'geändert', { objekt: 'Konto', konto: upd.nr + ' ' + name, jahr: y, betrag_alt: altB ?? null, betrag_neu: budget });
@@ -1191,6 +1218,27 @@ function postenErkennen(text, hauptId) {
   }
   return res;
 }
+/* ---------- Beleg-Rückfrage ---------- */
+// Ergebnis: { belegFehlt: true } | { ohneBeleg: 'Grund' } | null (abbrechen oder jetzt fotografieren)
+function belegFrage(k) {
+  return new Promise(res => {
+    let fertig = false; const ende = w => { if (!fertig) { fertig = true; res(w); } };
+    sheet(`<h2>Beleg fehlt</h2><p>Für das Konto <b>${esc(k.name)}</b> ist ein Beleg vorgesehen.</p>
+      <div class="btns" style="flex-direction:column;align-items:stretch">
+        <button class="btn" id="bFoto">📷 Jetzt fotografieren</button>
+        <button class="btn sec" id="bSpaeter">Später nachreichen</button></div>
+      <label for="bGrund" style="margin-top:14px">Oder ohne Beleg speichern, Grund:</label>
+      <input id="bGrund" placeholder="z. B. bar bezahlt, Zettel verloren">
+      <div class="btns" style="margin-top:8px"><button class="btn sec" id="bOhne">Ohne Beleg speichern</button><button class="btn sec" id="bCx">Abbrechen</button></div>`,
+      (root, close) => {
+        const bg = root.parentElement; new MutationObserver((_, o) => { if (!bg.isConnected) { o.disconnect(); ende(null); } }).observe(document.body, { childList: true });
+        root.querySelector('#bFoto').onclick = () => { close(); ende(null); document.getElementById('fFoto')?.click(); };
+        root.querySelector('#bSpaeter').onclick = () => { close(); ende({ belegFehlt: true }); };
+        root.querySelector('#bOhne').onclick = () => { const g = root.querySelector('#bGrund').value.trim(); if (!g) { toast('Bitte kurz den Grund angeben.'); root.querySelector('#bGrund').focus(); return; } close(); ende({ ohneBeleg: g }); };
+        root.querySelector('#bCx').onclick = () => { close(); ende(null); };
+      });
+  });
+}
 /* ---------- Aufteilen ---------- */
 function teilZeile(t = {}) {
   const typ = document.querySelector('#fTyp button.on')?.dataset.typ || 'A';
@@ -1292,6 +1340,15 @@ async function leseUndFuelle(root, blob) {
     ocrFortschritt = null;
     const r = leseBeleg(text);
     const fB = root.querySelector('#fBetrag'), fD = root.querySelector('#fDatum'), fT = root.querySelector('#fText'), fK = root.querySelector('#fKonto');
+    const bearb = !!root.closest('.sheet');
+    if (bearb) {
+      // Beim Nachreichen bestehende Angaben nicht überschreiben, nur auf Abweichung hinweisen
+      const t = [];
+      if (r.betrag != null && Math.abs((parseBetrag(fB.value) || 0) - r.betrag) > 0.005) t.push('Betrag ' + chf(r.betrag));
+      if (r.datum && r.datum !== fD.value) t.push('Datum ' + fmtDate(r.datum));
+      status.innerHTML = t.length ? `Beleg übernommen. Auf dem Beleg steht: ${esc(t.join(' · '))}. Bei Bedarf oben anpassen.` : '✓ Beleg übernommen, Betrag und Datum stimmen.';
+      return;
+    }
     if (r.betrag != null) fB.value = r.betrag.toFixed(2);
     if (r.datum) fD.value = r.datum;
     if (r.geschaeft && !fT.value) fT.value = r.geschaeft;

@@ -137,6 +137,9 @@ a.btn { text-decoration: none; display: inline-block; }
 .teil select, .teil input { margin: 0; }
 .teil .tT { grid-column: 1 / -1; font-size: 12px; margin-top: -2px; }
 .frage { margin-top: 10px; padding: 10px; border-radius: 10px; background: #fff3d6; color: #5a4300; }
+.warnkarte { background: #fff3d6; border-color: #f0d48a; color: #5a4300; }
+.warnkarte p { margin: 6px 0 0; }
+.playknopf { width: 34px; height: 34px; border-radius: 50%; background: var(--brand); color: #fff; display: inline-flex; align-items: center; justify-content: center; font-size: 14px; flex: none; margin-right: 10px; }
 
 </style>
 </head>
@@ -363,7 +366,7 @@ function vStart() {
     ${barHtml('A', s.A.soll, s.A.ist)}
     <div class="row muted"><span>${s.A.soll - s.A.ist >= 0 ? 'Noch verfügbar' : 'Über Budget'}</span><span class="num ${s.A.soll - s.A.ist >= 0 ? 'pos' : 'neg'}">${chf0(Math.abs(s.A.soll - s.A.ist))} CHF</span></div>
   </div>
-  ${fehltKarte()}${jahrKarte(ym)}
+  ${ablaufKarte()}${fehltKarte()}${jahrKarte(ym)}
   <div class="card"><div class="grid2">
     <div><h3>Einnahmen</h3><div class="big" style="font-size:20px">${chf0(s.E.ist)}</div><div class="muted">Budget ${chf0(s.E.soll)}</div></div>
     <div><h3>Saldo</h3><div class="big ${saldo >= 0 ? 'pos' : 'neg'}" style="font-size:20px">${saldo >= 0 ? '+' : ''}${chf0(saldo)}</div><div class="muted">Einnahmen − Ausgaben</div></div>
@@ -453,7 +456,7 @@ function buchungsListe() {
 
 function formBuchung(b) {
   const typ = b._typ || (konto(b.kontoId) || {}).typ || 'A';
-  const konten = kontenTyp(typ).map(k => `<option value="${k.id}" ${b.kontoId === k.id ? 'selected' : ''}>${esc(k.nr)} ${esc(k.name)}</option>`).join('');
+  const konten = (b.kontoId ? '' : '<option value="">Konto wählen…</option>') + kontenTyp(typ).map(k => `<option value="${k.id}" ${b.kontoId === k.id ? 'selected' : ''}>${esc(k.nr)} ${esc(k.name)}</option>`).join('');
   return `<div class="seg" id="fTyp"><button type="button" data-typ="A" class="${typ === 'A' ? 'on' : ''}">Ausgabe</button><button type="button" data-typ="E" class="${typ === 'E' ? 'on' : ''}">Einnahme</button></div>
     <label for="fBetrag">Betrag CHF</label><input id="fBetrag" inputmode="decimal" autocomplete="off" placeholder="0.00" value="${b.betrag != null ? b.betrag : ''}">
     <div class="grid2"><div><label for="fDatum">Datum</label><input id="fDatum" type="date" value="${esc(b.datum)}"></div>
@@ -566,11 +569,24 @@ function jahrTabelle(typ, y) {
     <p class="muted">Soll bis heute: ${Math.round(anteil * 100)}% des Jahresbudgets${S.data.start.startsWith(y) && S.data.start > y + '-01' ? ' (gezählt ab Beginn der Erfassung im ' + MONATE[+S.data.start.slice(5) - 1] + ')' : ''}. Die Ampel vergleicht das Ist damit.</p></div>`;
 }
 
+const HILFE = [
+  ['beleg', 'Beleg fotografieren und buchen', 'Foto, Zuschnitt, Erkennung, Aufteilen'],
+  ['fix', 'Feste Posten und fehlende Belege', 'Monatsposten bestätigen, Beleg nachreichen'],
+  ['budget', 'Budget und Auswertung', 'Jahresbudget, nächstes Jahr, Soll-Ist']
+];
+function zeigeVideo(id) {
+  const h = HILFE.find(x => x[0] === id); if (!h) return;
+  const basis = location.protocol === 'file:' ? 'https://pasaruwa-bit.github.io/Buchhaltung_App/' : '';
+  sheet(`<h2>${esc(h[1])}</h2><video src="${basis}hilfe/${id}.webm" controls autoplay playsinline preload="auto" style="width:100%;max-height:70vh;border-radius:10px;background:#000"></video>
+    <p class="muted">Ohne Ton. Mit ❚❚ anhalten, mit dem Balken zurückspulen.</p><div class="btns"><button class="btn" id="cx">Schliessen</button></div>`,
+    (root, close) => root.querySelector('#cx').onclick = close);
+}
 function vEinstellungen() {
   const m = mandant();
   const konten = t => kontenTyp(t).map(k => `<li class="click" data-act="kontoEdit:${k.id}"><div class="grow"><div class="t">${esc(k.nr)} ${esc(k.name)}</div>
     <div class="muted">${jahresBudget(k, S.ym.slice(0, 4)) ? chf0(jahresBudget(k, S.ym.slice(0, 4))) + ' CHF/Jahr' : 'kein Budget'}${k.fix ? ' · fester Posten' + (fixBetrag(k) ? ' ' + chf(fixBetrag(k)) + '/Monat' : '') : ''}${t === 'A' && belegNoetig(k) ? ' · 📎 Beleg nötig' : ''}</div></div><span class="muted">›</span></li>`).join('');
-  return `<div class="card"><h2>Buchhaltung</h2>
+  return `<div class="card"><h2>Hilfe: Erklärvideos</h2><ul class="list">${HILFE.map(([id, t, d]) => `<li class="click" data-act="video:${id}"><span class="playknopf">▶</span><div class="grow"><div class="t">${esc(t)}</div><div class="muted">${esc(d)}</div></div></li>`).join('')}</ul></div>
+    <div class="card"><h2>Buchhaltung</h2>
     <label for="sName">Name dieser Buchhaltung</label><input id="sName" value="${esc(m.name)}" data-act="setName">
     <label for="sIch">Dein Name (wird bei Buchungen vermerkt)</label><input id="sIch" value="${esc(S.ich)}" placeholder="z. B. Walter" data-act="setIch">
     <div class="btns" style="margin-top:12px"><button class="btn sec" data-act="mandantNeu">+ Neue Buchhaltung</button>
@@ -595,7 +611,7 @@ function vEinstellungen() {
     <div class="btns"><button class="btn sec" data-act="csv">Buchungen ${S.ym.slice(0, 4)} als CSV (Excel)</button>
     <button class="btn sec" data-act="backup">Sicherung herunterladen</button>
     <button class="btn sec" data-act="restore">Sicherung einlesen</button></div>
-    <p class="muted">Version vom 6.11.2026 (12) · Daten dieser Buchhaltung: ${S.data.buchungen.length} Buchungen, ${S.data.konten.length} Konten</p></div>`;
+    <p class="muted">Version vom 6.11.2026 (13) · Daten dieser Buchhaltung: ${S.data.buchungen.length} Buchungen, ${S.data.konten.length} Konten</p></div>`;
 }
 
 // Namensregel: Buchhaltung_<Name>, z. B. Buchhaltung_Brigitte
@@ -641,6 +657,7 @@ function neueBuchung(f, extra = {}) {
 }
 const AKT = {
   tab: t => { S.nurFehlend = false; zeige(t); },
+  video: id => zeigeVideo(id),
   fehlend: () => { S.nurFehlend = true; S.suche = ''; zeige('buchungen'); },
   alleZeigen: () => { S.nurFehlend = false; render(); },
   filter: (_, el) => { S.filterKonto = el.value; render(); },
@@ -955,13 +972,17 @@ async function sync(laut) {
     for (let versuch = 0; versuch < 3; versuch++) {
       const r = await fetch(url + '?t=' + now(), { headers: hdr, cache: 'no-store' });
       let remote = null, sha;
+      // GitHub meldet das Ablaufdatum des Schlüssels mit (falls der Browser den Header lesen darf)
+      const ex = r.headers.get('github-authentication-token-expiration');
+      if (ex) { const d = new Date(ex.replace(' UTC', 'Z').replace(' ', 'T')); if (!isNaN(d)) m.ablauf = d.toISOString().slice(0, 10); }
+      if (r.status !== 401) delete m.abgelaufen;
       if (r.status === 200) { const j = await r.json(); sha = j.sha; remote = migriere(JSON.parse(b64dec(j.content))); }
       else if (r.status === 404) {
         const rr = await fetch(`https://api.github.com/repos/${m.repo}`, { headers: hdr });
         if (rr.status === 404) throw new Error('Repository nicht gefunden oder kein Zugriff. Prüfe Name und Token.');
         if (rr.ok && !(await rr.json()).private) throw new Error('Das Repository ist öffentlich! Bitte auf „Private“ stellen, sonst kann jeder deine Daten sehen.');
       }
-      else if (r.status === 401) throw new Error('Zugangsschlüssel ungültig oder abgelaufen.');
+      else if (r.status === 401) { m.abgelaufen = true; speichereMandanten(); render(); throw new Error('Zugangsschlüssel ungültig oder abgelaufen.'); }
       else if (r.status === 403) throw new Error('Kein Zugriff (403). Hat der Token Schreibrechte auf „Contents“?');
       else throw new Error('GitHub antwortet mit Fehler ' + r.status);
       if (S.aktiv !== mId) return;
@@ -978,6 +999,7 @@ async function sync(laut) {
       S.data = neu; LS.set('budget.data.' + mId, neu);
       await ladeBelegeHoch(m, hdr);
       await ladeProtokollHoch(m, hdr);
+      if (!m.ablauf && S.ich) await ablaufAusPersonen(m, hdr);
       m.dirty = false; m.lastSync = now(); delete m.uebernehmen; speichereMandanten();
       if (!document.querySelector('.sheet-bg')) render(); else aktualisiereKopf();
       laut && toast('Abgeglichen ✓');
@@ -1177,7 +1199,10 @@ function leseBeleg(text) {
     if (d >= 1 && d <= 31 && mo >= 1 && mo <= 12 && y >= 2000) { const iso = `${y}-${pad(mo)}-${pad(d)}`; if (iso <= heute) { datum = iso; break; } }
   }
   const g = zeilen.slice(0, 6).map(z => z.replace(/(?<=[A-Za-z])0|0(?=[A-Za-z])/g, 'o')).find(z => /[A-Za-zÄÖÜäöüéè]{3,}/.test(z) && !/quittung|beleg|kassenbon|rechnung|willkommen|herzlich|kasse|filiale/i.test(z));
-  const geschaeft = g ? g.replace(/[^\wÄÖÜäöüéèàç&.' -]/g, '').replace(/\s+/g, ' ').trim().slice(0, 40) : '';
+  // Bekannte Geschäfte mit kurzem, sauberem Namen (Texterkennung liest Kopfzeilen oft fehlerhaft)
+  const roh = text.replace(/0/g, 'o');
+  const bekannt = GESCHAEFTE.find(([re]) => re.test(roh));
+  const geschaeft = bekannt ? bekannt[1] : g ? g.replace(/[^\wÄÖÜäöüéèàç&.' -]/g, '').replace(/\s+/g, ' ').trim().slice(0, 40) : '';
   // Beleg nur in Euro (kein CHF/Fr. auf dem Beleg): Euro-Betrag zurückgeben, Umrechnung macht leseUndFuelle
   let eur = null;
   if (!kand.some(k => k.chf) && (kand.some(k => k.eur) || eurRe.test(text))) {
@@ -1188,6 +1213,17 @@ function leseBeleg(text) {
   }
   return { betrag, datum, geschaeft, eur };
 }
+const GESCHAEFTE = [
+  [/migrolino/i, 'Migrolino'], [/migros\s*restaurant/i, 'Migros Restaurant'], [/m-?electronics|melectronics/i, 'Melectronics'], [/do\s*it\s*\+?\s*garden/i, 'Do it + Garden'], [/migros/i, 'Migros'],
+  [/coop\s*pronto/i, 'Coop Pronto'], [/coop\s*vitality/i, 'Coop Vitality'], [/coop\s*city/i, 'Coop City'], [/coop\s*bau/i, 'Coop Bau+Hobby'], [/coop/i, 'Coop'],
+  [/denner/i, 'Denner'], [/\baldi\b/i, 'Aldi'], [/\blidl\b/i, 'Lidl'], [/\bvolg\b/i, 'Volg'], [/\blandi\b/i, 'Landi'], [/manor/i, 'Manor'], [/globus/i, 'Globus'],
+  [/ikea/i, 'IKEA'], [/galaxus/i, 'Galaxus'], [/digitec/i, 'Digitec'], [/interdiscount/i, 'Interdiscount'], [/media\s*markt/i, 'Media Markt'], [/fust/i, 'Fust'],
+  [/amavita/i, 'Amavita'], [/sun\s*store/i, 'Sunstore'], [/dropa/i, 'Dropa'], [/fielmann/i, 'Fielmann'], [/visilab/i, 'Visilab'],
+  [/sunrise/i, 'Sunrise'], [/swisscom/i, 'Swisscom'], [/\bsalt\b/i, 'Salt'], [/\bsbb\b|cff\s*ffs/i, 'SBB'], [/postauto/i, 'PostAuto'], [/die\s*post|\bpost\s*ch\b/i, 'Post'],
+  [/\bshell\b/i, 'Shell'], [/\bavia\b/i, 'Avia'], [/\btamoil\b/i, 'Tamoil'], [/\bagrola\b/i, 'Agrola'], [/\bsocar\b/i, 'Socar'], [/\bbp\b/i, 'BP'],
+  [/tchibo/i, 'Tchibo'], [/h\s*&\s*m\b/i, 'H&M'], [/zara/i, 'Zara'], [/ochsner/i, 'Ochsner Sport'], [/decathlon/i, 'Decathlon'], [/jumbo/i, 'Jumbo'], [/hornbach/i, 'Hornbach'],
+  [/edeka/i, 'EDEKA'], [/\brewe\b/i, 'REWE'], [/kaufland/i, 'Kaufland'], [/\bdm\b.*drogerie|dm-drogerie/i, 'dm']
+];
 const KONTO_HINWEISE = [
   [/migros|coop|aldi|lidl|denner|volg|spar|landi|manor food|bäckerei|metzgerei|lebensmittel/i, /essen|haushalt/i],
   [/shell|bp|avia|tamoil|esso|agrola|socar|eni|migrol|tankstelle|benzin|diesel/i, /benzin/i],
@@ -1461,6 +1497,25 @@ async function ladeProtokollHoch(m, hdr) {
 
 /* ---------- Einladungslink ---------- */
 // Link vom Admin-Center: …/#einladung=<base64url(JSON {n: Name, r: Repository, t: Token, p: Person})>
+// Ablaufdatum aus der Personenliste des Verwalters (admin/personen.json, ohne Schlüssel)
+async function ablaufAusPersonen(m, hdr) {
+  if (m.ablaufGeprueft && now() - m.ablaufGeprueft < 864e5) return;
+  m.ablaufGeprueft = now();
+  try {
+    const r = await fetch(`https://api.github.com/repos/${m.repo}/contents/admin/personen.json`, { headers: { ...hdr, Accept: 'application/vnd.github.raw+json' }, cache: 'no-store' });
+    if (!r.ok) return;
+    const p = (await r.json()).filter(x => !x.gesperrt && x.ablauf && x.name.trim().toLowerCase() === S.ich.trim().toLowerCase()).sort((a, b) => b.ablauf.localeCompare(a.ablauf))[0];
+    if (p) m.ablauf = p.ablauf;
+  } catch {}
+}
+function ablaufKarte() {
+  const m = mandant(); if (!m || !m.repo) return '';
+  if (m.abgelaufen) return `<div class="card warnkarte"><b>⚠ Zugang abgelaufen oder gesperrt</b><p>Der Abgleich mit GitHub funktioniert nicht mehr. Deine Daten auf diesem Gerät bleiben erhalten. Bitte beim Verwalter einen neuen Einladungslink holen und öffnen.</p></div>`;
+  if (!m.ablauf) return '';
+  const tage = Math.round((new Date(m.ablauf) - new Date(todayISO())) / 864e5);
+  if (tage > 30) return '';
+  return `<div class="card warnkarte"><b>⚠ Zugang läuft ${tage <= 0 ? 'heute' : tage === 1 ? 'morgen' : 'in ' + tage + ' Tagen'} ab (${fmtDate(m.ablauf)})</b><p>Bitte beim Verwalter rechtzeitig einen neuen Einladungslink holen. Danach geht alles wie gewohnt weiter.</p></div>`;
+}
 function pruefeEinladung() {
   const m = location.hash.match(/einladung=([\w-]+)/);
   if (!m) return false;
@@ -1480,7 +1535,7 @@ function pruefeEinladung() {
     LS.set('budget.data.' + md.id, neueDaten(null));
     md.uebernehmen = true;
   }
-  md.repo = e.r; md.dirty = false; LS.set('budget.token.' + md.id, e.t);
+  md.repo = e.r; md.dirty = false; md.ablauf = e.a || null; delete md.abgelaufen; delete md.ablaufGeprueft; LS.set('budget.token.' + md.id, e.t);
   LS.set('budget.ghuser', e.r.split('/')[0]);
   S.aktiv = md.id; speichereMandanten(); ladeDaten();
   toast('Buchhaltung eingerichtet, Daten werden geladen…');
